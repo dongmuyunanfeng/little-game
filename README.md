@@ -162,8 +162,10 @@ DNS 检查变绿后勾选 **Enforce HTTPS**（证书由 GitHub 自动签发，�
 生效后直接访问 `https://game.example.com` 就是游戏本体，不带任何路径。
 
 > 备案：域名解析指向 GitHub（境外服务器）**不需要** ICP 备案；只有解析到境内服务器才需要。
-> 国内访问 `github.io` 偶尔不稳，可以把 `https://<用户名>.github.io/binfen-dieying/`
-> 留作备用入口。
+>
+> 注意：一旦在 Pages 里填了 Custom domain，`https://<用户名>.github.io/binfen-dieying/`
+> 会 **301 跳转**到你的自定义域名，不再是一个独立入口。想两个地址都能用，就别设 Custom domain，
+> 只在 DNS 里加 `CNAME`（GitHub 会自动跟随，但 HTTPS 证书只对 `github.io` 有效）。
 
 > 其他托管方式同理：文件是纯静态的，Vercel / Netlify / Cloudflare Pages 直接拖进去就能上线，
 > 绑定域名后在平台后台加一条 CNAME 即可。
