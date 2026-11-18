@@ -1,0 +1,874 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>缤纷叠影 · 折叠还原</title>
+<meta name="description" content="最强大脑同款空间推理游戏：沿折痕折叠三角彩纸，把原图折成结果图。">
+<meta name="theme-color" content="#05070f">
+<meta property="og:title" content="缤纷叠影 · 折叠还原">
+<meta property="og:description" content="沿折痕折叠三角彩纸，把左边的原图折成右边的结果图。">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230a1020'/%3E%3Cpath d='M6 6h26v26z' fill='%23E8414F'/%3E%3Cpath d='M58 6v26H32z' fill='%23F2B33D'/%3E%3Cpath d='M58 58H32V32z' fill='%2333C6DC'/%3E%3Cpath d='M6 58V32h26z' fill='%238B5CD6'/%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#05070f;
+    --text:#e9eeff;
+    --muted:#7f8dab;
+    --line:rgba(120,170,255,.14);
+    --panel:rgba(255,255,255,.035);
+    --cyan:#45d8f5;
+    --gold:#f2b33d;
+    --dur:460ms;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;overflow:hidden;
+    font-family:"PingFang SC","HarmonyOS Sans SC","Microsoft YaHei",system-ui,-apple-system,sans-serif;
+    color:var(--text);
+    background:
+      radial-gradient(900px 620px at 8% -6%, rgba(30,84,160,.42) 0%, transparent 62%),
+      radial-gradient(760px 560px at 98% 104%, rgba(94,38,140,.34) 0%, transparent 60%),
+      radial-gradient(700px 460px at 62% 42%, rgba(14,44,84,.42) 0%, transparent 72%),
+      var(--bg);
+    -webkit-font-smoothing:antialiased;
+  }
+  body::after{
+    content:"";position:fixed;inset:0;pointer-events:none;opacity:.03;z-index:0;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  .app{position:relative;z-index:1;height:100vh;display:flex;flex-direction:column;padding:16px 24px 14px}
+
+  /* ---------- topbar ---------- */
+  .topbar{display:flex;align-items:center;gap:18px;flex-shrink:0}
+  .brand{display:flex;align-items:center;gap:11px}
+  .logo{
+    width:36px;height:36px;border-radius:10px;flex-shrink:0;
+    background:conic-gradient(from 45deg,#E8414F 0 25%,#F2B33D 0 50%,#33C6DC 0 75%,#8B5CD6 0);
+    box-shadow:0 0 0 1px rgba(255,255,255,.14), 0 8px 22px -10px rgba(69,216,245,.55);
+    -webkit-mask:radial-gradient(circle,transparent 26%,#000 27%);
+            mask:radial-gradient(circle,transparent 26%,#000 27%);
+  }
+  .brand h1{margin:0;font-size:17px;letter-spacing:.18em;font-weight:700;
+    background:linear-gradient(100deg,#fff,#bfe9ff 60%,#45d8f5);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .brand p{margin:2px 0 0;font-size:10px;letter-spacing:.34em;color:var(--muted)}
+
+  .stats{display:flex;gap:7px;margin-left:auto}
+  .stat{min-width:74px;padding:6px 11px;border-radius:10px;background:var(--panel);
+    border:1px solid var(--line);display:flex;flex-direction:column;gap:1px}
+  .stat span{font-size:9.5px;letter-spacing:.2em;color:var(--muted)}
+  .stat b{font-size:16px;font-variant-numeric:tabular-nums;font-weight:600}
+  .stat.hot b{color:var(--gold)}
+
+  .tools{display:flex;gap:7px}
+  button{font-family:inherit;cursor:pointer;border:none;color:var(--text);
+    transition:transform .16s,background .16s,border-color .16s,opacity .16s,filter .16s}
+  button:active{transform:scale(.96)}
+  .ghost{padding:8px 13px;border-radius:10px;font-size:12.5px;letter-spacing:.06em;
+    background:rgba(255,255,255,.05);border:1px solid var(--line)}
+  .ghost:hover{background:rgba(255,255,255,.11);border-color:rgba(140,190,255,.3)}
+  .ghost:disabled{opacity:.3;cursor:default}
+  .icon-btn{width:36px;height:36px;border-radius:10px;background:rgba(255,255,255,.05);
+    border:1px solid var(--line);font-size:14px}
+  .icon-btn:hover{background:rgba(255,255,255,.11)}
+  .icon-btn.off{color:#4a5776}
+
+  /* ---------- boards ---------- */
+  .boards{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;
+    gap:clamp(10px,2.4vw,38px);padding:10px 0 4px;
+    --bw: min(48vw, calc(100vh - 206px))}
+
+  .board-col{display:flex;flex-direction:column;gap:9px;min-width:0}
+  .col-head{display:flex;align-items:baseline;gap:8px;padding-left:3px}
+  .col-head .dot{width:6px;height:6px;border-radius:50%;background:var(--cyan);
+    box-shadow:0 0 10px var(--cyan);align-self:center}
+  .col-head .dot.gold{background:var(--gold);box-shadow:0 0 10px var(--gold)}
+  .col-head b{font-size:13px;letter-spacing:.2em;font-weight:600}
+  .col-head em{font-style:normal;font-size:10.5px;letter-spacing:.12em;color:var(--muted)}
+
+  .frame{
+    position:relative;border-radius:14px;padding:0;overflow:hidden;
+    background:#0a1020;
+    box-shadow:
+      0 0 0 1px rgba(150,200,255,.22),
+      0 0 0 5px rgba(10,18,34,.9),
+      0 0 0 6px rgba(120,180,255,.12),
+      0 0 42px -6px rgba(69,216,245,.28),
+      0 30px 70px -30px rgba(0,0,0,.95);
+  }
+  .frame::before,.frame::after{
+    content:"";position:absolute;width:16px;height:16px;border:2px solid rgba(69,216,245,.6);
+    pointer-events:none;z-index:20;border-radius:2px;
+  }
+  .frame::before{left:-1px;top:-1px;border-right:0;border-bottom:0;border-top-left-radius:9px}
+  .frame::after{right:-1px;bottom:-1px;border-left:0;border-top:0;border-bottom-right-radius:9px}
+
+  #frameL{width:var(--bw)}
+  #frameR{width:calc(var(--bw) * .74)}
+
+  .board{position:relative;width:100%;aspect-ratio:1;perspective:1500px;user-select:none;
+    -webkit-tap-highlight-color:transparent;touch-action:manipulation;background:#0a1020}
+  .board.static{perspective:none}
+
+  .tri{position:absolute;display:block;transition:background-color .18s}
+  .lat{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2}
+  .lat line{stroke:rgba(4,8,16,.8);stroke-width:1.3;vector-effect:non-scaling-stroke;stroke-linecap:square}
+
+  .crease{position:absolute;z-index:6;cursor:pointer}
+  .crease.v{top:0;bottom:0;width:20px;transform:translateX(-50%)}
+  .crease.h{left:0;right:0;height:20px;transform:translateY(-50%)}
+  .crease::after{content:"";position:absolute;inset:0;border-radius:3px;transition:background .15s}
+  .crease:hover::after{background:rgba(255,255,255,.1)}
+
+  .hint{position:absolute;z-index:5;pointer-events:none;opacity:0;transition:opacity .16s;
+    background:rgba(255,255,255,.15);border-radius:2px;
+    box-shadow:inset 0 0 0 2px rgba(255,255,255,.95), inset 0 0 60px rgba(255,255,255,.2),
+               0 0 30px rgba(255,255,255,.25)}
+  .hint.on{opacity:1}
+  .hint.solved{background:rgba(69,216,245,.24);
+    box-shadow:inset 0 0 0 2px rgba(120,235,255,.95), inset 0 0 60px rgba(69,216,245,.3),
+               0 0 34px rgba(69,216,245,.55)}
+
+  .tip{position:absolute;z-index:6;pointer-events:none;opacity:0;transition:opacity .16s,transform .16s;
+    transform:translate(-50%,-50%) scale(.9);
+    padding:6px 11px;border-radius:999px;font-size:12px;letter-spacing:.06em;white-space:nowrap;
+    background:rgba(10,18,34,.9);border:1px solid rgba(69,216,245,.4);
+    box-shadow:0 8px 24px -8px rgba(0,0,0,.9);color:#cdefff;display:flex;align-items:center;gap:5px}
+  .tip.on{opacity:1;transform:translate(-50%,-50%) scale(1)}
+  .tip i{font-style:normal;color:var(--cyan);font-size:13px}
+
+  .flap{position:absolute;z-index:9;overflow:hidden;will-change:transform;
+    transition:transform var(--dur) cubic-bezier(.34,.05,.16,1),filter var(--dur) ease;
+    filter:drop-shadow(0 14px 22px rgba(0,0,0,.6))}
+
+  .mid{display:flex;flex-direction:column;align-items:center;gap:6px;color:var(--muted);
+    font-size:10px;letter-spacing:.2em;flex-shrink:0}
+  .mid b{font-size:20px;color:rgba(69,216,245,.7);font-weight:400}
+
+  .toast{position:fixed;left:50%;bottom:16px;transform:translateX(-50%) translateY(6px);
+    padding:8px 16px;border-radius:999px;font-size:12.5px;letter-spacing:.08em;
+    background:rgba(10,18,34,.92);border:1px solid rgba(120,180,255,.24);
+    opacity:0;pointer-events:none;transition:opacity .22s,transform .22s;z-index:40}
+  .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  /* ---------- overlay ---------- */
+  .overlay{position:fixed;inset:0;z-index:50;display:grid;place-items:center;padding:22px;
+    background:radial-gradient(900px 620px at 50% 12%,rgba(20,48,92,.86),rgba(5,7,15,.96));
+    backdrop-filter:blur(14px);animation:fade .3s both}
+  .overlay[hidden]{display:none}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+  .sheet{width:min(920px,100%);max-height:100%;overflow:auto;animation:rise .42s cubic-bezier(.2,.8,.2,1) both}
+  @keyframes rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+  .sheet::-webkit-scrollbar{width:6px}
+  .sheet::-webkit-scrollbar-thumb{background:rgba(255,255,255,.16);border-radius:3px}
+
+  .kicker{display:inline-flex;align-items:center;gap:7px;font-size:10.5px;letter-spacing:.28em;
+    color:var(--cyan);padding:5px 12px;border-radius:999px;
+    border:1px solid rgba(69,216,245,.3);background:rgba(69,216,245,.07)}
+
+  .hero{display:grid;grid-template-columns:minmax(0,1fr) 268px;gap:40px;align-items:center}
+  .title{margin:16px 0 7px;font-size:clamp(34px,5.2vw,54px);letter-spacing:.14em;font-weight:800;line-height:1.06;
+    background:linear-gradient(104deg,#fff 8%,#cdefff 46%,#45d8f5 92%);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{margin:0;font-size:13px;color:var(--muted);letter-spacing:.08em;line-height:1.6}
+
+  .rules{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:22px 0 20px}
+  .rule{padding:12px 13px;border-radius:12px;background:rgba(255,255,255,.032);border:1px solid var(--line)}
+  .rule .n{font-size:10px;color:var(--cyan);letter-spacing:.18em;font-weight:600}
+  .rule p{margin:6px 0 0;font-size:12px;line-height:1.62;color:#aab8d4}
+  .rule p b{color:#fff;font-weight:600}
+
+  .pick{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:18px}
+  .pick button{padding:9px 14px;border-radius:10px;font-size:12.5px;letter-spacing:.06em;
+    background:rgba(255,255,255,.04);border:1px solid var(--line)}
+  .pick button:hover{background:rgba(255,255,255,.09)}
+  .pick button.on{background:linear-gradient(150deg,rgba(69,216,245,.22),rgba(69,216,245,.06));
+    border-color:rgba(69,216,245,.5);color:#d7f6ff}
+
+  .start{width:100%;padding:15px;border-radius:13px;font-size:15px;letter-spacing:.24em;font-weight:700;
+    color:#04121a;background:linear-gradient(100deg,#8ceaff,#45d8f5 55%,#2fb6e0);
+    box-shadow:0 20px 44px -20px rgba(69,216,245,.9), inset 0 1px 0 rgba(255,255,255,.55)}
+  .start:hover{filter:brightness(1.07)}
+  .row-meta{display:flex;justify-content:space-between;margin-top:10px;font-size:10.5px;color:#556383;letter-spacing:.1em}
+
+  .demo{display:flex;flex-direction:column;gap:10px}
+  .demo-frame{position:relative;border-radius:12px;overflow:hidden;background:#0a1020;
+    box-shadow:0 0 0 1px rgba(150,200,255,.16),0 0 30px -8px rgba(69,216,245,.3)}
+  .demo-frame .board{perspective:800px}
+  .demo-cap{font-size:10.5px;letter-spacing:.14em;color:var(--muted);text-align:center}
+
+  /* win */
+  .win{text-align:center;width:min(430px,100%)}
+  .win h2{margin:12px 0 4px;font-size:30px;letter-spacing:.18em;font-weight:800;
+    background:linear-gradient(100deg,#fff,#cdefff 60%,#45d8f5);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .stars{display:flex;justify-content:center;gap:9px;margin:16px 0 2px;font-size:26px;color:rgba(255,255,255,.14)}
+  .stars b{transition:transform .3s,color .3s}
+  .stars b.on{color:var(--gold);text-shadow:0 0 22px rgba(242,179,61,.7);transform:scale(1.12)}
+  .win-stats{display:flex;gap:8px;margin:18px 0 20px}
+  .win-stats div{flex:1;padding:11px;border-radius:11px;background:rgba(255,255,255,.04);border:1px solid var(--line)}
+  .win-stats span{display:block;font-size:9.5px;letter-spacing:.2em;color:var(--muted);margin-bottom:4px}
+  .win-stats b{font-size:18px;font-variant-numeric:tabular-nums}
+  .win-actions{display:flex;gap:8px}
+  .win-actions button{flex:1;padding:13px;border-radius:12px;font-size:13px;letter-spacing:.1em}
+
+  @media (max-width:900px){
+    .hero{grid-template-columns:1fr;gap:0}
+    .demo{display:none}
+  }
+  @media (max-width:760px){
+    .app{padding:10px 12px 10px}
+    .topbar{flex-wrap:wrap;gap:10px}
+    .brand h1{font-size:15px}
+    .brand p{display:none}
+    .stats{margin-left:0;order:3;width:100%}
+    .stat{flex:1;min-width:0;padding:5px 9px}
+    .stat b{font-size:14px}
+    .tools{margin-left:auto}
+    .ghost{padding:7px 10px;font-size:11.5px}
+    .icon-btn{width:32px;height:32px}
+    #frameL{width:var(--bw)}
+    #frameR{width:calc(var(--bw) * .58)}
+    .boards{flex-direction:column;gap:8px;--bw:min(88vw, calc(100vh - 356px))}
+    .mid{flex-direction:row;gap:7px}
+    .mid b{transform:rotate(90deg);line-height:1}
+    .mid span{letter-spacing:.1em}
+    .col-head em{display:none}
+    .rules{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo"></div>
+      <div><h1>缤纷叠影</h1><p>FOLD & MIRROR</p></div>
+    </div>
+    <div class="stats">
+      <div class="stat"><span>用时</span><b id="s-time">00:00</b></div>
+      <div class="stat"><span>步数</span><b id="s-moves">0</b></div>
+      <div class="stat hot"><span>参考步</span><b id="s-par">—</b></div>
+    </div>
+    <div class="tools">
+      <button class="ghost" id="b-undo">撤销</button>
+      <button class="ghost" id="b-reset">重来</button>
+      <button class="ghost" id="b-new">换题</button>
+      <button class="ghost" id="b-hint">提示</button>
+      <button class="icon-btn" id="b-help" title="玩法">?</button>
+    </div>
+  </header>
+
+  <main class="boards">
+    <section class="board-col">
+      <div class="col-head"><span class="dot"></span><b>原图</b><em>沿折痕折叠</em></div>
+      <div class="frame" id="frameL"><div class="board" id="board"></div></div>
+    </section>
+
+    <div class="mid"><span>折成</span><b>→</b></div>
+
+    <section class="board-col">
+      <div class="col-head"><span class="dot gold"></span><b>结果图</b><em>目标</em></div>
+      <div class="frame" id="frameR"><div class="board static" id="target"></div></div>
+    </section>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- 开始 -->
+<div class="overlay" id="ov-start">
+  <div class="sheet">
+    <div class="hero">
+      <div>
+        <div class="kicker">空间 · 推理 · 折叠还原</div>
+        <h1 class="title">缤纷叠影</h1>
+        <p class="sub">一整张三角彩纸，格线与对角线都是折痕。<br>把左侧原图沿折痕折成右侧结果图。</p>
+
+        <div class="rules">
+          <div class="rule"><div class="n">01 / 折痕</div><p>方格线与两条对角线就是<b>折痕</b>，鼠标移到折痕上会亮起要折走的一侧。</p></div>
+          <div class="rule"><div class="n">02 / 翻折</div><p>只能把<b>较少的一侧</b>折过去；两侧等宽时折左 / 上侧。</p></div>
+          <div class="rule"><div class="n">03 / 镜像</div><p>翻面时三角色块左右或上下<b>镜像</b>，覆盖对面原有的颜色。</p></div>
+          <div class="rule"><div class="n">04 / 还原</div><p>颜色与结果图完全一致即通关，不限步数，用时与步数计分。</p></div>
+        </div>
+
+        <div class="pick" id="pick"></div>
+        <button class="start" id="b-start">开 始 挑 战</button>
+        <div class="row-meta"><span id="meta-left">5 档难度 · 无限出题</span><span>Z 撤销 / R 重来 / H 提示</span></div>
+      </div>
+
+      <div class="demo">
+        <div class="col-head"><span class="dot"></span><b>试折</b><em>自动演示</em></div>
+        <div class="demo-frame"><div class="board static" id="demo"></div></div>
+        <div class="demo-cap" id="demo-cap">格线与对角线都是折痕</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 通关 -->
+<div class="overlay" id="ov-win" hidden>
+  <div class="sheet win">
+    <div class="kicker">叠 影 重 现</div>
+    <h2>还原完成</h2>
+    <div class="stars" id="w-stars"><b>★</b><b>★</b><b>★</b></div>
+    <div class="win-stats">
+      <div><span>用时</span><b id="w-time">00:00</b></div>
+      <div><span>步数</span><b id="w-moves">0</b></div>
+      <div><span>参考步</span><b id="w-par">0</b></div>
+    </div>
+    <div class="win-actions">
+      <button class="ghost" id="b-again">再折一次</button>
+      <button class="start" style="flex:1.4;letter-spacing:.14em" id="b-next">下一题</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ==================== 基础 ==================== */
+  const NS = 'http://www.w3.org/2000/svg';
+  const PAL = ['#E8414F','#F2B33D','#33C6DC','#8B5CD6','#FF7A3D','#4A7DFF'];
+  // 每格 4 个三角：0 上 / 1 右 / 2 下 / 3 左
+  const CLIP = [
+    'polygon(0 0,100% 0,50% 50%)',
+    'polygon(100% 0,100% 100%,50% 50%)',
+    'polygon(100% 100%,0 100%,50% 50%)',
+    'polygon(0 100%,0 0,50% 50%)'
+  ];
+  const DIFFS = {
+    easy:   {label:'入门', n:5, colors:3, folds:2},
+    junior: {label:'初级', n:6, colors:4, folds:3},
+    mid:    {label:'中级', n:7, colors:4, folds:4},
+    hard:   {label:'高级', n:8, colors:5, folds:6},
+    expert: {label:'挑战', n:9, colors:6, folds:8}
+  };
+  const DUR = 460;
+
+  const $ = s => document.querySelector(s);
+  const boardEl = $('#board'), targetEl = $('#target');
+  const sTime = $('#s-time'), sMoves = $('#s-moves'), sPar = $('#s-par');
+
+  const S = {
+    diff: localStorage.getItem('fy_diff') || 'mid',
+    n: 7, colors: 4, par: 0,
+    grid: [], initial: [], target: [],
+    tris: [], moves: 0, history: [],
+    creases: [], folding: false, running: false,
+    started: 0, pausedAt: 0, timerId: 0,
+    solved: +(localStorage.getItem('fy_solved') || 0)
+  };
+
+  /* ==================== 折叠运算 ==================== */
+  // 折痕：v/i 表示第 i 条竖线（i=1..n-1），左侧宽 i，右侧宽 n-i
+  function allCreases(n){
+    const out = [];
+    for(let i=1;i<n;i++){
+      out.push({axis:'v', i, dir: i <= n-i ? 'pos' : 'neg', size: Math.min(i, n-i)});
+      out.push({axis:'h', i, dir: i <= n-i ? 'pos' : 'neg', size: Math.min(i, n-i)});
+    }
+    return out;
+  }
+
+  // 镜像覆盖：源侧翻面，三角类型左右/上下互换
+  function applyFold(g, n, f){
+    const out = g.slice();
+    const i = f.i, k = 2*i - 1;
+    if(f.axis === 'v'){
+      const x0 = f.dir === 'pos' ? 0 : i;
+      const x1 = f.dir === 'pos' ? i : n;
+      for(let y=0;y<n;y++){
+        const row = y*n;
+        for(let x=x0;x<x1;x++){
+          const s = (row + x)*4, d = (row + (k-x))*4;
+          out[d]   = g[s];
+          out[d+1] = g[s+3];
+          out[d+2] = g[s+2];
+          out[d+3] = g[s+1];
+        }
+      }
+    } else {
+      const y0 = f.dir === 'pos' ? 0 : i;
+      const y1 = f.dir === 'pos' ? i : n;
+      for(let y=y0;y<y1;y++){
+        const row = y*n;
+        for(let x=0;x<n;x++){
+          const s = (row + x)*4, d = ((k-y)*n + x)*4;
+          out[d]   = g[s+2];
+          out[d+1] = g[s+1];
+          out[d+2] = g[s];
+          out[d+3] = g[s+3];
+        }
+      }
+    }
+    return out;
+  }
+
+  const same = (a,b) => a.length === b.length && a.every((v,i)=>v === b[i]);
+
+  /* ==================== 出题 ==================== */
+  function makePuzzle(key){
+    const d = DIFFS[key], n = d.n;
+    for(let attempt=0; attempt<50; attempt++){
+      let g = new Array(n*n*4);
+      for(let c=0;c<n*n;c++){
+        const base = (Math.random()*d.colors)|0;
+        for(let t=0;t<4;t++) g[c*4+t] = Math.random() < .45 ? base : (Math.random()*d.colors)|0;
+      }
+      const init = g.slice();
+      const list = allCreases(n);
+      let applied = 0, guard = 0;
+      while(applied < d.folds && guard < 400){
+        guard++;
+        const cands = list.filter(f => !same(applyFold(g,n,f), g));
+        if(!cands.length) break;
+        // 偏向小面积折叠，保持盘面色彩丰富
+        let total = 0;
+        const w = cands.map(f => { const v = 1/(f.size*f.size*4); total += v; return v; });
+        let r = Math.random()*total, pick = cands[cands.length-1];
+        for(let i=0;i<cands.length;i++){ r -= w[i]; if(r <= 0){ pick = cands[i]; break; } }
+        g = applyFold(g, n, pick);
+        applied++;
+      }
+      const colorsUsed = new Set(g).size;
+      if(applied === 0 || same(init, g) || colorsUsed < Math.min(3, d.colors)) continue;
+      return {n, colors:d.colors, grid:init, target:g, par:applied};
+    }
+    const fb = new Array(n*n*4).fill(0);
+    return {n, colors:d.colors, grid:fb, target:fb.slice(), par:1};
+  }
+
+  /* ==================== 渲染 ==================== */
+  function makeLattice(n){
+    const svg = document.createElementNS(NS,'svg');
+    svg.setAttribute('viewBox', `0 0 ${n} ${n}`);
+    svg.setAttribute('preserveAspectRatio','none');
+    svg.setAttribute('class','lat');
+    let s = '';
+    for(let i=1;i<n;i++){
+      s += `<line x1="${i}" y1="0" x2="${i}" y2="${n}"/>`;
+      s += `<line x1="0" y1="${i}" x2="${n}" y2="${i}"/>`;
+    }
+    for(let y=0;y<n;y++) for(let x=0;x<n;x++){
+      s += `<line x1="${x}" y1="${y}" x2="${x+1}" y2="${y+1}"/>`;
+      s += `<line x1="${x+1}" y1="${y}" x2="${x}" y2="${y+1}"/>`;
+    }
+    svg.innerHTML = s;
+    return svg;
+  }
+
+  function triEl(x, y, t, n, grid, ox, oy, cw, ch){
+    const el = document.createElement('i');
+    el.className = 'tri';
+    el.style.left   = ((x-ox)/cw*100) + '%';
+    el.style.top    = ((y-oy)/ch*100) + '%';
+    el.style.width  = (100/cw) + '%';
+    el.style.height = (100/ch) + '%';
+    el.style.clipPath = CLIP[t];
+    el.style.backgroundColor = PAL[grid[((y*n+x)*4+t)] % PAL.length];
+    return el;
+  }
+
+  function render(host, n, grid){
+    host.innerHTML = '';
+    const frag = document.createDocumentFragment();
+    const tris = [];
+    for(let y=0;y<n;y++) for(let x=0;x<n;x++) for(let t=0;t<4;t++){
+      const el = triEl(x,y,t,n,grid,0,0,n,n);
+      frag.appendChild(el); tris.push(el);
+    }
+    host.appendChild(frag);
+    host.appendChild(makeLattice(n));
+    return tris;
+  }
+
+  function paint(){
+    const n = S.n;
+    for(let c=0;c<n*n;c++){
+      for(let t=0;t<4;t++){
+        const el = S.tris[c*4+t];
+        if(el) el.style.backgroundColor = PAL[S.grid[c*4+t] % PAL.length];
+      }
+    }
+  }
+
+  /* ==================== 折痕交互 ==================== */
+  function buildCreases(){
+    const n = S.n;
+    document.querySelectorAll('#board .crease').forEach(e => e.remove());
+    S.creases = allCreases(n);
+    S.creaseEls = [];
+    S.creases.forEach((f, idx) => {
+      const el = document.createElement('b');
+      el.className = 'crease ' + f.axis;
+      if(f.axis === 'v') el.style.left = (f.i/n*100) + '%';
+      else el.style.top = (f.i/n*100) + '%';
+      el.addEventListener('pointerenter', e => { if(e.pointerType !== 'touch') showHint(f); });
+      el.addEventListener('pointerleave', () => hideHint());
+      el.addEventListener('click', () => doFold(f));
+      boardEl.appendChild(el);
+      S.creaseEls.push(el);
+    });
+  }
+
+  function sourceRect(n, f){
+    if(f.axis === 'v'){
+      const x0 = f.dir === 'pos' ? 0 : f.i;
+      return {x0, y0:0, cw: f.size, ch: n};
+    }
+    const y0 = f.dir === 'pos' ? 0 : f.i;
+    return {x0:0, y0, cw: n, ch: f.size};
+  }
+
+  function showHint(f){
+    if(S.folding || !S.running) return;
+    const n = S.n, r = sourceRect(n, f);
+    const h = S.hintEl;
+    h.style.left = (r.x0/n*100) + '%';
+    h.style.top = (r.y0/n*100) + '%';
+    h.style.width = (r.cw/n*100) + '%';
+    h.style.height = (r.ch/n*100) + '%';
+    h.classList.add('on');
+    h.classList.remove('solved');
+    const arrow = f.axis === 'v' ? (f.dir === 'pos' ? '▶' : '◀') : (f.dir === 'pos' ? '▼' : '▲');
+    S.tipEl.innerHTML = '<i>' + arrow + '</i>折 ' + f.size + (f.axis === 'v' ? ' 列' : ' 行');
+    const px = f.axis === 'v' ? (f.i/n*100) : 50;
+    const py = f.axis === 'v' ? 50 : (f.i/n*100);
+    S.tipEl.style.left = px + '%';
+    S.tipEl.style.top = py + '%';
+    S.tipEl.classList.add('on');
+  }
+  function hideHint(){
+    if(S.hintEl) S.hintEl.classList.remove('on');
+    if(S.tipEl) S.tipEl.classList.remove('on');
+  }
+
+  /* ==================== 折叠动画 ==================== */
+  function doFold(f){
+    if(S.folding || !S.running) return;
+    S.folding = true;
+    hideHint();
+
+    const n = S.n, r = sourceRect(n, f);
+    const flap = document.createElement('div');
+    flap.className = 'flap';
+    flap.style.left   = (r.x0/n*100) + '%';
+    flap.style.top    = (r.y0/n*100) + '%';
+    flap.style.width  = (r.cw/n*100) + '%';
+    flap.style.height = (r.ch/n*100) + '%';
+
+    const frag = document.createDocumentFragment();
+    for(let y=r.y0;y<r.y0+r.ch;y++) for(let x=r.x0;x<r.x0+r.cw;x++) for(let t=0;t<4;t++){
+      frag.appendChild(triEl(x, y, t, n, S.grid, r.x0, r.y0, r.cw, r.ch));
+    }
+    flap.appendChild(frag);
+
+    const lat = makeLattice(n);
+    lat.style.left   = (-r.x0/r.cw*100) + '%';
+    lat.style.top    = (-r.y0/r.ch*100) + '%';
+    lat.style.width  = (n/r.cw*100) + '%';
+    lat.style.height = (n/r.ch*100) + '%';
+    flap.appendChild(lat);
+
+    if(f.axis === 'v') flap.style.transformOrigin = (f.dir === 'pos' ? '100%' : '0%') + ' 50%';
+    else flap.style.transformOrigin = '50% ' + (f.dir === 'pos' ? '100%' : '0%');
+
+    boardEl.appendChild(flap);
+
+    const next = applyFold(S.grid, n, f);
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      flap.style.transform = f.axis === 'v' ? 'rotateY(180deg)' : 'rotateX(180deg)';
+    }));
+
+    let done = false;
+    const finish = () => {
+      if(done) return; done = true;
+      S.history.push({grid:S.grid.slice(), moves:S.moves});
+      S.moves++;
+      S.grid = next;
+      paint();
+      flap.remove();
+      sMoves.textContent = S.moves;
+      S.folding = false;
+      beep(f.axis === 'v' ? 520 : 400);
+      if(!same(S.grid, S.target)) toast('已折 ' + (f.axis === 'v' ? '竖' : '横') + ' ' + f.size + (f.axis === 'v' ? ' 列' : ' 行'));
+      checkWin();
+    };
+    flap.addEventListener('transitionend', finish, {once:true});
+    setTimeout(finish, DUR + 80);
+  }
+
+  /* ==================== 音效 ==================== */
+  let actx = null;
+  let muted = localStorage.getItem('fy_muted') === '1';
+  function beep(freq, dur){
+    if(muted) return;
+    try{
+      if(!actx) actx = new (window.AudioContext||window.webkitAudioContext)();
+      if(actx.state === 'suspended') actx.resume();
+      const o = actx.createOscillator(), g = actx.createGain();
+      o.type = 'sine'; o.frequency.value = freq;
+      g.gain.setValueAtTime(0, actx.currentTime);
+      g.gain.linearRampToValueAtTime(.05, actx.currentTime + .01);
+      g.gain.exponentialRampToValueAtTime(.0001, actx.currentTime + (dur||.16));
+      o.connect(g); g.connect(actx.destination);
+      o.start(); o.stop(actx.currentTime + (dur||.16) + .02);
+    }catch(e){}
+  }
+  function fanfare(){
+    [523,659,784,1047].forEach((f,i) => setTimeout(() => beep(f,.4), i*95));
+  }
+
+  /* ==================== 流程 ==================== */
+  function fmt(ms){
+    const t = Math.max(0, Math.floor(ms/1000));
+    return String(Math.floor(t/60)).padStart(2,'0') + ':' + String(t%60).padStart(2,'0');
+  }
+  function tick(){ if(S.running) sTime.textContent = fmt(Date.now() - S.started); }
+
+  function newPuzzle(key){
+    if(key) S.diff = key;
+    localStorage.setItem('fy_diff', S.diff);
+    const p = makePuzzle(S.diff);
+    S.n = p.n; S.colors = p.colors; S.par = p.par;
+    S.grid = p.grid.slice(); S.initial = p.grid.slice(); S.target = p.target.slice();
+    S.moves = 0; S.history = []; S.folding = false;
+
+    S.tris = render(boardEl, S.n, S.grid);
+    render(targetEl, S.n, S.target);
+    buildCreases();
+
+    // 提示层
+    const hint = document.createElement('div'); hint.className = 'hint'; boardEl.appendChild(hint);
+    const tip = document.createElement('div'); tip.className = 'tip'; boardEl.appendChild(tip);
+    S.hintEl = hint; S.tipEl = tip;
+
+    sMoves.textContent = '0';
+    sPar.textContent = S.par;
+    sTime.textContent = '00:00';
+    document.querySelectorAll('.pick button, .diff-chip').forEach(b =>
+      b.classList.toggle('on', b.dataset.k === S.diff));
+  }
+
+  function beginPlay(){
+    $('#ov-start').hidden = true;
+    $('#ov-win').hidden = true;
+    S.running = true;
+    S.started = Date.now();
+    S.folding = false;
+    clearInterval(S.timerId);
+    S.timerId = setInterval(tick, 200);
+    sTime.textContent = '00:00';
+    stopDemo();
+  }
+
+  function checkWin(){
+    if(!S.running || !same(S.grid, S.target)) return;
+    S.running = false;
+    clearInterval(S.timerId);
+    const used = Date.now() - S.started;
+    S.solved++;
+    localStorage.setItem('fy_solved', S.solved);
+    $('#meta-left').textContent = '累计还原 ' + S.solved + ' 题';
+    $('#w-time').textContent = fmt(used);
+    $('#w-moves').textContent = S.moves;
+    $('#w-par').textContent = S.par;
+    const stars = S.moves <= S.par ? 3 : (S.moves <= S.par + 2 ? 2 : 1);
+    const el = $('#w-stars').children;
+    for(let i=0;i<3;i++) el[i].classList.remove('on');
+    setTimeout(() => { for(let i=0;i<stars;i++) setTimeout(() => el[i].classList.add('on'), i*150); }, 200);
+    setTimeout(() => { $('#ov-win').hidden = false; fanfare(); }, 480);
+    beep(880,.3);
+  }
+
+  function toast(msg){
+    const t = $('#toast');
+    t.textContent = msg;
+    t.classList.add('on');
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => t.classList.remove('on'), 1300);
+  }
+
+  /* ==================== 提示（BFS 3 层） ==================== */
+  function findHint(){
+    const n = S.n;
+    const key = g => g.join('');
+    const seen = new Set([key(S.grid)]);
+    let layer = [{g:S.grid, first:null}];
+    for(let d=0; d<3; d++){
+      const next = [];
+      for(const node of layer){
+        for(const f of S.creases){
+          const g = applyFold(node.g, n, f);
+          if(same(g, node.g)) continue;
+          const k = key(g);
+          if(seen.has(k)) continue;
+          seen.add(k);
+          const first = node.first || f;
+          if(same(g, S.target)) return first;
+          next.push({g, first});
+        }
+      }
+      if(!next.length) break;
+      layer = next;
+    }
+    return null;
+  }
+
+  /* ==================== 演示动画 ==================== */
+  let demoTimer = 0, demoState = null;
+  function startDemo(){
+    const n = 5, host = $('#demo');
+    let g = new Array(n*n*4);
+    for(let i=0;i<g.length;i++) g[i] = (Math.random()*4)|0;
+    host.innerHTML = '';
+    const frag = document.createDocumentFragment();
+    for(let y=0;y<n;y++) for(let x=0;x<n;x++) for(let t=0;t<4;t++){
+      frag.appendChild(triEl(x,y,t,n,g,0,0,n,n));
+    }
+    host.appendChild(frag);
+    host.appendChild(makeLattice(n));
+    demoState = {n, host, grid:g, count:0};
+
+    const step = () => {
+      const st = demoState;
+      if(!st) return;
+      if(st.count > 7){ startDemo(); return; }
+      const list = allCreases(st.n).filter(f => !same(applyFold(st.grid, st.n, f), st.grid));
+      if(!list.length){ startDemo(); return; }
+      const f = list[(Math.random()*list.length)|0];
+      const r = sourceRect(st.n, f);
+      const flap = document.createElement('div');
+      flap.className = 'flap';
+      flap.style.left = (r.x0/st.n*100)+'%';
+      flap.style.top = (r.y0/st.n*100)+'%';
+      flap.style.width = (r.cw/st.n*100)+'%';
+      flap.style.height = (r.ch/st.n*100)+'%';
+      const fr = document.createDocumentFragment();
+      for(let y=r.y0;y<r.y0+r.ch;y++) for(let x=r.x0;x<r.x0+r.cw;x++) for(let t=0;t<4;t++){
+        fr.appendChild(triEl(x,y,t,st.n,st.grid,r.x0,r.y0,r.cw,r.ch));
+      }
+      flap.appendChild(fr);
+      const lat = makeLattice(st.n);
+      lat.style.left = (-r.x0/r.cw*100)+'%';
+      lat.style.top = (-r.y0/r.ch*100)+'%';
+      lat.style.width = (st.n/r.cw*100)+'%';
+      lat.style.height = (st.n/r.ch*100)+'%';
+      flap.appendChild(lat);
+      if(f.axis === 'v') flap.style.transformOrigin = (f.dir==='pos'?'100%':'0%')+' 50%';
+      else flap.style.transformOrigin = '50% '+(f.dir==='pos'?'100%':'0%');
+      st.host.appendChild(flap);
+
+      const nx = applyFold(st.grid, st.n, f);
+      $('#demo-cap').textContent = (f.axis === 'v' ? '竖折 ' : '横折 ') + f.size + (f.axis === 'v' ? ' 列' : ' 行');
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        flap.style.transform = f.axis === 'v' ? 'rotateY(180deg)' : 'rotateX(180deg)';
+      }));
+      setTimeout(() => {
+        st.grid = nx; st.count++;
+        const nodes = st.host.querySelectorAll('.tri');
+        for(let i=0;i<nodes.length;i++) nodes[i].style.backgroundColor = PAL[st.grid[i] % PAL.length];
+        flap.remove();
+      }, DUR + 40);
+      demoTimer = setTimeout(step, 1900);
+    };
+    demoTimer = setTimeout(step, 1400);
+  }
+  function stopDemo(){
+    clearTimeout(demoTimer);
+    demoState = null;
+  }
+
+  /* ==================== 初始化 UI ==================== */
+  function buildPick(){
+    const pick = $('#pick');
+    Object.keys(DIFFS).forEach(k => {
+      const d = DIFFS[k];
+      const b = document.createElement('button');
+      b.dataset.k = k;
+      b.textContent = d.label + ' · ' + d.n + '×' + d.n;
+      b.addEventListener('click', () => { S.diff = k; newPuzzle(k); });
+      pick.appendChild(b);
+    });
+    document.querySelectorAll('.pick button').forEach(b =>
+      b.classList.toggle('on', b.dataset.k === S.diff));
+    $('#meta-left').textContent = S.solved ? ('累计还原 ' + S.solved + ' 题') : '5 档难度 · 无限出题';
+  }
+
+  /* ==================== 事件 ==================== */
+  $('#b-start').addEventListener('click', beginPlay);
+
+  $('#b-undo').addEventListener('click', () => {
+    if(S.folding || !S.history.length) return;
+    const h = S.history.pop();
+    S.grid = h.grid; S.moves = h.moves;
+    paint(); sMoves.textContent = S.moves;
+    hideHint();
+    beep(320,.1);
+  });
+
+  $('#b-reset').addEventListener('click', () => {
+    if(S.folding) return;
+    S.grid = S.initial.slice(); S.history = []; S.moves = 0;
+    paint(); sMoves.textContent = '0';
+    S.started = Date.now(); S.running = true;
+    hideHint();
+    toast('已回到初始盘面');
+  });
+
+  $('#b-new').addEventListener('click', () => {
+    if(S.folding) return;
+    newPuzzle(S.diff);
+    S.started = Date.now();
+    toast('换新题目');
+  });
+
+  $('#b-hint').addEventListener('click', () => {
+    if(!S.running || S.folding) return;
+    const f = findHint();
+    if(!f){ toast('这一步走远了，试试「重来」'); return; }
+    const n = S.n, r = sourceRect(n, f);
+    S.hintEl.style.left = (r.x0/n*100)+'%';
+    S.hintEl.style.top = (r.y0/n*100)+'%';
+    S.hintEl.style.width = (r.cw/n*100)+'%';
+    S.hintEl.style.height = (r.ch/n*100)+'%';
+    S.hintEl.classList.add('on','solved');
+    toast('试试这条折痕');
+    setTimeout(() => S.hintEl.classList.remove('on'), 2200);
+  });
+
+  $('#b-help').addEventListener('click', () => {
+    if(S.running){ S.running = false; clearInterval(S.timerId); }
+    $('#b-start').textContent = '继 续 挑 战';
+    $('#ov-start').hidden = false;
+    startDemo();
+  });
+
+  $('#b-next').addEventListener('click', () => { newPuzzle(S.diff); beginPlay(); });
+  $('#b-again').addEventListener('click', () => {
+    S.grid = S.initial.slice(); S.history = []; S.moves = 0;
+    paint(); sMoves.textContent = '0';
+    beginPlay();
+  });
+
+  document.addEventListener('keydown', e => {
+    if(e.key === 'z' || e.key === 'Z') $('#b-undo').click();
+    if(e.key === 'r' || e.key === 'R') $('#b-reset').click();
+    if(e.key === 'h' || e.key === 'H') $('#b-hint').click();
+  });
+
+  /* ==================== 启动 ==================== */
+  buildPick();
+  newPuzzle(S.diff);
+  S.running = false;
+  startDemo();
+})();
+</script>
+</body>
+</html>
