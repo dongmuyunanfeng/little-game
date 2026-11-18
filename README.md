@@ -89,15 +89,20 @@ npx serve .
 
 ### 1. 建仓库并推送
 
+先在 GitHub 网页上 **New repository**：名字填 `binfen-dieying`，可见性选 **Public**
+（免费版 Pages 只能发布公开仓库），**不要**勾「Add a README file」，然后复制下面的命令：
+
 ```bash
 cd binfen-dieying
-git init
-git add .
-git commit -m "feat: 缤纷叠影 · 折叠还原"
-git branch -M main
 git remote add origin https://github.com/<你的用户名>/binfen-dieying.git
+git branch -M main
 git push -u origin main
 ```
+
+> 推送时如果用账号密码会被拒。GitHub 现在只认 **Personal Access Token**：
+> 头像 → Settings → Developer settings → Personal access tokens → Tokens (classic) →
+> Generate new token，勾 `repo`，把生成的 `ghp_xxx` 当密码粘贴。
+> 更省事的方式是用 GitHub Desktop 或 VS Code 登录一次，凭据会被记住。
 
 ### 2. 打开 Pages
 
@@ -117,35 +122,48 @@ https://<你的用户名>.github.io/binfen-dieying/
 
 ### 3. 绑定自己的域名
 
-假设你的域名是 `fold.example.com`。
+先选一种，**强烈建议用子域名**（如 `game.example.com`），一条 CNAME 就完事：
 
-**a. 在仓库里加 CNAME**
-把本目录的 `CNAME.sample` 复制成 `CNAME`（无后缀），内容只写域名一行：
-
-```
-fold.example.com
-```
-
-**b. 配 DNS**（在域名服务商处）
-
-| 记录类型 | 主机记录 | 记录值 |
+| 方案 | 访问地址 | 需要配的记录 |
 | --- | --- | --- |
-| CNAME | `fold` | `<你的用户名>.github.io` |
+| 子域名（推荐） | `game.example.com` | 1 条 CNAME |
+| 根域名 | `example.com` | 4 条 A 记录 |
 
-如果用**根域名**（`example.com`）而不是子域名，CNAME 不适用，要配 A 记录：
+#### 3.1 华为云域名（云解析 DNS）怎么填
 
-| 类型 | 主机记录 | 记录值 |
+控制台 → **云解析服务 DNS** → **公网解析** → 点你的域名 → **添加记录集**：
+
+| 字段 | 子域名方案 | 根域名方案 |
 | --- | --- | --- |
-| A | `@` | `185.199.108.153` |
-| A | `@` | `185.199.109.153` |
-| A | `@` | `185.199.110.153` |
-| A | `@` | `185.199.111.153` |
+| 记录类型 | `CNAME` | `A` |
+| 主机记录 | `game`（**只写前缀**，不要写全域名） | `@` |
+| 记录值 | `<你的用户名>.github.io` | 依次添加 4 条：`185.199.108.153`、`185.199.109.153`、`185.199.110.153`、`185.199.111.153` |
+| TTL | `300`（先小一点，方便改错后快速生效） | `300` |
 
-**c. 回填域名**
-回到 **Settings → Pages → Custom domain** 填 `fold.example.com`，Save，DNS 检查通过后
-勾选 **Enforce HTTPS**（证书由 GitHub 自动签发，通常几分钟到一小时生效）。
+几个容易填错的地方：
 
-DNS 生效后，直接访问 `https://fold.example.com` 就是游戏本体，不需要任何路径。
+- **记录值那栏填的是 GitHub 的地址**（`你的用户名.github.io`），不是自己的域名；
+  它形如 `example.com` 只是因为它就是个域名，别被输入框里的示例误导。
+- 记录值不要带 `https://`、不要带末尾斜杠、不要带端口、末尾不加点。
+- 主机记录填 `game`，最终域名自动拼成 `game.你的域名.com`；填成完整域名会报错。
+- CNAME 记录和 A 记录**不能同名共存**；同一个子域名只能有一条 CNAME。
+- 华为云域名必须完成**实名认证**，否则解析会被 `serverHold` 暂停，怎么等都访问不了。
+
+#### 3.2 回填到 GitHub
+
+回到仓库 **Settings → Pages → Custom domain**，填 `game.example.com` → **Save**。
+
+GitHub 会自动在仓库根目录生成一个 `CNAME` 文件（也可以自己手写：把 `CNAME.sample`
+复制成 `CNAME`，里面**只放一行域名**，不要有多余空行或 `https://`）。
+两者内容必须和 DNS 里配的域名完全一致，否则会 404 或证书签发失败。
+
+DNS 检查变绿后勾选 **Enforce HTTPS**（证书由 GitHub 自动签发，通常几分钟到几小时）。
+
+生效后直接访问 `https://game.example.com` 就是游戏本体，不带任何路径。
+
+> 备案：域名解析指向 GitHub（境外服务器）**不需要** ICP 备案；只有解析到境内服务器才需要。
+> 国内访问 `github.io` 偶尔不稳，可以把 `https://<用户名>.github.io/binfen-dieying/`
+> 留作备用入口。
 
 > 其他托管方式同理：文件是纯静态的，Vercel / Netlify / Cloudflare Pages 直接拖进去就能上线，
 > 绑定域名后在平台后台加一条 CNAME 即可。
