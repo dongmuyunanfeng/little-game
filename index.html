@@ -81,6 +81,11 @@
     background:rgba(255,255,255,.05);border:1px solid var(--line)}
   .ghost:hover{background:rgba(255,255,255,.11);border-color:rgba(140,190,255,.3)}
   .ghost:disabled{opacity:.3;cursor:default}
+  .ghost.pulse{background:rgba(255,198,92,.18);border-color:rgba(255,198,92,.68);color:#ffd88a;
+    animation:undoPulse 1.05s ease-in-out 2}
+  @keyframes undoPulse{
+    50%{background:rgba(255,198,92,.34);box-shadow:0 0 0 5px rgba(255,198,92,.14)}
+  }
   .hint-btn{background:linear-gradient(150deg,rgba(69,216,245,.22),rgba(69,216,245,.05));
     border-color:rgba(69,216,245,.45);color:#d7f6ff}
   .hint-btn:hover{background:rgba(69,216,245,.3);border-color:rgba(120,235,255,.75)}
@@ -96,6 +101,8 @@
     opacity:0;transform:translate(-50%,-10px);
     transition:opacity .2s,transform .22s cubic-bezier(.2,.8,.2,1)}
   .coach.on{opacity:1;transform:translate(-50%,0)}
+  .coach.bot{top:auto;bottom:9px;transform:translate(-50%,10px)}
+  .coach.bot.on{transform:translate(-50%,0)}
   .coach i{font-style:normal;color:var(--cyan);font-size:14px;line-height:1}
   .coach b{color:#fff;font-weight:600}
   .icon-btn:hover{background:rgba(255,255,255,.11)}
@@ -150,11 +157,14 @@
   .hl{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:5;
     opacity:0;transition:opacity .16s}
   .hl.on{opacity:1}
-  .hl polygon{fill:rgba(255,255,255,.125);stroke:rgba(255,255,255,.95);stroke-width:2;
+  /* 把「不折的部分」整体压暗，只留要折的那一块保持原色，边界一眼可辨 */
+  .hl .dim{fill:rgba(3,7,14,.3)}
+  .hl .edge{fill:rgba(255,255,255,.1);stroke:rgba(255,255,255,.95);stroke-width:2;
     vector-effect:non-scaling-stroke;stroke-linejoin:round;
-    filter:drop-shadow(0 0 10px rgba(255,255,255,.55))}
-  .hl.solved polygon{fill:rgba(69,216,245,.18);stroke:rgba(150,242,255,.98);
-    filter:drop-shadow(0 0 12px rgba(69,216,245,.85))}
+    filter:drop-shadow(0 0 10px rgba(255,255,255,.6))}
+  .hl.solved .dim{fill:rgba(3,10,20,.44)}
+  .hl.solved .edge{fill:rgba(69,216,245,.2);stroke:rgba(160,246,255,.98);stroke-width:2.5;
+    filter:drop-shadow(0 0 12px rgba(69,216,245,.9))}
 
   .tip{position:absolute;z-index:6;pointer-events:none;opacity:0;transition:opacity .16s,transform .16s;
     transform:translate(-50%,-50%) scale(.9);
@@ -276,7 +286,7 @@
     <div class="stats">
       <div class="stat time"><span><i class="led" id="s-led"></i>计时</span><b id="s-time">00:00</b></div>
       <div class="stat"><span>步数</span><b id="s-moves">0</b></div>
-      <div class="stat hot"><span>参考步</span><b id="s-par">—</b></div>
+      <div class="stat hot" title="这道题的最少必要步数（已去掉会被后续折叠盖掉的冗余步）"><span>参考步</span><b id="s-par">—</b></div>
     </div>
     <div class="tools">
       <button class="ghost" id="b-undo">撤销</button>
@@ -372,9 +382,9 @@
   const DIFFS = {
     easy:   {label:'入门', n:5, colors:3, folds:2},
     junior: {label:'初级', n:6, colors:4, folds:3},
-    mid:    {label:'中级', n:7, colors:4, folds:4},
-    hard:   {label:'高级', n:8, colors:5, folds:6},
-    expert: {label:'挑战', n:9, colors:6, folds:8}
+    mid:    {label:'中级', n:7, colors:4, folds:5},
+    hard:   {label:'高级', n:8, colors:5, folds:7},
+    expert: {label:'挑战', n:9, colors:6, folds:9}
   };
   const DUR = 460;
 
@@ -526,6 +536,20 @@
 
   const same = (a,b) => a.length === b.length && a.every((v,i)=>v === b[i]);
 
+  // 两个盘面有多少个三角不同（用于判「这一步是不是白折」）
+  function diffCount(a, b){
+    let c = 0;
+    for(let i=0;i<a.length;i++) if(a[i] !== b[i]) c++;
+    return c;
+  }
+
+  // 从初始盘面依次执行一串折叠
+  function replayPath(init, path, n){
+    let g = init.slice();
+    for(const f of path) g = applyFold(g, n, f);
+    return g;
+  }
+
   function foldLabel(f){
     if(f.kind === 'v') return '竖折 ' + f.size + ' 列';
     if(f.kind === 'h') return '横折 ' + f.size + ' 行';
@@ -550,22 +574,31 @@
   }
 
   /* ==================== 出题 ==================== */
-  // 随机彩纸 → 依次折 k 次，折出来的样子就是结果图（所以必然有解：照同一条路走一遍即可）
+  // 随机彩纸 → 依次折 k 次，折出来的样子就是结果图（所以必然有解：照同一条路走一遍即可）。
+  // 折叠是「覆盖」操作，后折的一侧会把前一次折出来的颜色盖掉；
+  // 所以出完题必须剪枝 —— 删掉那些「删了也还能到同一结果」的步，否则参考步数会虚高。
   function makePuzzle(key){
-    const d = DIFFS[key], n = d.n;
-    for(let attempt=0; attempt<70; attempt++){
-      let g = new Array(n*n*4);
+    const d = DIFFS[key], n = d.n, N4 = n*n*4;
+    const want = d.folds;
+    const budget = want + 1;          // 多折一步，剪枝后仍有余量
+    let best = null;
+
+    for(let attempt=0; attempt<160; attempt++){
+      let g = new Array(N4);
       for(let c=0;c<n*n;c++){
         const base = (Math.random()*d.colors)|0;
         for(let t=0;t<4;t++) g[c*4+t] = Math.random() < .45 ? base : (Math.random()*d.colors)|0;
       }
       const init = g.slice();
       const list = allCreases(n);
+      const banned = new Set();
       const path = [];
       let guard = 0, diag = 0, big = 0;
-      while(path.length < d.folds && guard < 600){
+
+      while(path.length < budget && guard < 700){
         guard++;
-        const cands = list.filter(f => f.area >= 1.5 && !same(applyFold(g,n,f), g));
+        // 上一轮被判定为「折了几乎没变化」的折痕，在盘面变化前不再抽
+        const cands = list.filter(f => f.area >= 1.5 && !banned.has(f));
         if(!cands.length) break;
         // 偏向中小面积折叠：既保留色彩层次，又让折痕一眼看得见；
         // 横竖折加权，避免整局都在折角上的三角形
@@ -576,20 +609,61 @@
         });
         let r = Math.random()*total, pick = cands[cands.length-1];
         for(let i=0;i<cands.length;i++){ r -= w[i]; if(r <= 0){ pick = cands[i]; break; } }
-        g = applyFold(g, n, pick);
+
+        const nx = applyFold(g, n, pick);
+        // 净变化不足这次折叠面积的一半 → 这一下几乎是在折「已经一样的颜色」，白费一步
+        if(diffCount(nx, g) < pick.area * 4 * .55){ banned.add(pick); continue; }
+
+        g = nx;
         path.push(pick);
+        banned.clear();
         if(pick.kind === 'd' || pick.kind === 'a') diag++;
         if(pick.area > n*n/4) big++;
       }
       if(path.length < 2) continue;
       if(d.folds >= 3 && diag === 0) continue;      // 中高难度至少有一次斜折
       if(big > 1) continue;                          // 不要连着折半张纸
-      const colorsUsed = new Set(g).size;
-      if(same(init, g) || colorsUsed < Math.min(3, d.colors)) continue;
-      return {n, colors:d.colors, grid:init, target:g, par:path.length, path};
+      if(same(init, g)) continue;
+
+      // 剪枝：某步删掉后照样能折到目标，说明它被后面的折叠盖住了，不算有效步
+      const pruned = prunePath(init, path, n, g);
+      if(pruned.length < Math.min(want, 2)) continue;
+
+      // 剪完之后再验一遍：每一步都得真的改变盘面
+      let h = init.slice(), ok = true;
+      for(const f of pruned){
+        const nx = applyFold(h, n, f);
+        if(diffCount(nx, h) < f.area * 4 * .45){ ok = false; break; }
+        h = nx;
+      }
+      if(!ok) continue;
+
+      // 原图与结果图必须有足够多的差异，否则一眼看不出要折哪
+      const ratio = diffCount(init, g) / N4;
+      if(ratio < .28) continue;
+
+      const cand = {n, colors:d.colors, grid:init, target:g, par:pruned.length, path:pruned, ratio};
+      if(cand.par >= want && cand.ratio >= .34) return cand;   // 够长又够花，直接用
+      if(!best || cand.par > best.par) best = cand;            // 否则留个次好的兜底
     }
+
+    if(best) return best;
     const fb = new Array(n*n*4).fill(0);
     return {n, colors:d.colors, grid:fb, target:fb.slice(), par:1, path:[]};
+  }
+
+  // 反复尝试删掉任意一步：删完还能到目标就真删。返回不可再删的路径。
+  function prunePath(init, path, n, target){
+    let cur = path.slice();
+    for(let round=0; round<12; round++){
+      let cut = false;
+      for(let i=0;i<cur.length;i++){
+        const trial = cur.slice(0, i).concat(cur.slice(i+1));
+        if(same(replayPath(init, trial, n), target)){ cur = trial; cut = true; break; }
+      }
+      if(!cut) break;
+    }
+    return cur;
   }
 
   /* ==================== 渲染 ==================== */
@@ -689,19 +763,26 @@
   function showHint(f, solved){
     if(S.folding || !S.running || !S.hlPoly) return;
     const n = S.n, poly = flapPoly(n, f);
-    S.hlPoly.setAttribute('points', poly.map(p => p[0] + ',' + p[1]).join(' '));
+    const pts = poly.map(p => p[0] + ',' + p[1]).join(' ');
+    S.hlPoly.setAttribute('points', pts);
+    S.hlDim.setAttribute('d', 'M0 0H' + n + 'V' + n + 'H0Z M' + poly.map(p => p[0] + ' ' + p[1]).join('L') + 'Z');
     S.hl.classList.add('on');
     S.hl.classList.toggle('solved', !!solved);
     let cx = 0, cy = 0;
     for(const p of poly){ cx += p[0]; cy += p[1]; }
+    const cyf = cy / poly.length / n;                 // 折走那块的重心高度 0..1
     cx = Math.min(.84, Math.max(.16, cx / poly.length / n)) * 100;
-    cy = Math.min(.86, Math.max(.14, cy / poly.length / n)) * 100;
+    cy = Math.min(.86, Math.max(.14, cyf)) * 100;
     S.tipEl.innerHTML = '<i>' + foldArrow(f) + '</i>' + foldLabel(f);
     S.tipEl.style.left = cx + '%';
     S.tipEl.style.top = cy + '%';
     // 用「提示下一步」时只留顶部那条说明，盘面上不再叠标签
     S.tipEl.classList.toggle('on', !solved);
-    if(solved) coach('<i>' + foldArrow(f) + '</i><b>下一步：</b>' + foldAdvice(f));
+    if(solved){
+      // 说明条挪到高亮的对面，别把要折的那一块挡住
+      coachEl.classList.toggle('bot', cyf < .42);
+      coach('<i>' + foldArrow(f) + '</i><b>下一步：</b>' + foldAdvice(f));
+    }
   }
   function hideHint(){
     if(S.hl) S.hl.classList.remove('on');
@@ -836,12 +917,17 @@
     hl.setAttribute('class','hl');
     hl.setAttribute('preserveAspectRatio','none');
     hl.setAttribute('viewBox', '0 0 ' + S.n + ' ' + S.n);
-    const pg = document.createElementNS(NS,'polygon');
+    const dim = document.createElementNS(NS,'path');       // 全盘压暗，中间挖出要折的那块
+    dim.setAttribute('class','dim');
+    dim.setAttribute('fill-rule','evenodd');
+    dim.setAttribute('d','');
+    const pg = document.createElementNS(NS,'polygon');     // 要折那一块的亮边
+    pg.setAttribute('class','edge');
     pg.setAttribute('points','');
-    hl.appendChild(pg);
+    hl.appendChild(dim); hl.appendChild(pg);
     boardEl.appendChild(hl);
     const tip = document.createElement('div'); tip.className = 'tip'; boardEl.appendChild(tip);
-    S.hl = hl; S.hlPoly = pg; S.tipEl = tip;
+    S.hl = hl; S.hlPoly = pg; S.hlDim = dim; S.tipEl = tip;
 
     // 出题解法（供「提示」使用）
     S.solution = p.path || [];
@@ -904,31 +990,42 @@
   }
 
   /* ==================== 提示 ==================== */
-  // 目标：永远给得出「下一步点哪条折痕」
-  //   1) 还在出题解法上 → 直接给下一步（再长的解法也能提示）
-  //   2) 走偏了 → 3 层搜索里挑总步数最少的一条：折到终点，或折回解法轨道
-  //   3) 都不行 → 给与目标差异最小的那一步（尽量往对的方向推）
+  // 折叠不可逆：翻过去的颜色会盖住对面，折错了没法「展开还原」。
+  // 所以提示只做两件事，绝不给瞎猜的一步：
+  //   1) 还在这道题的解法上 → 直接给下一步（解法再长也能一直提示）
+  //   2) 偏离时做 3 层搜索，能不能折到终点或折回原路（少数对称折痕能救回来）
+  //   3) 都做不到 → 老实告诉你撤几步回原路
   function keyOf(g){ return g.join(''); }
 
-  function diffCount(g, t){
-    let d = 0;
-    for(let i=0;i<g.length;i++) if(g[i] !== t[i]) d++;
-    return d;
+  function trackIndex(){
+    const pre = S.prefix || [];
+    const idx = new Map();
+    for(let i=0;i<pre.length-1;i++) if(!idx.has(keyOf(pre[i]))) idx.set(keyOf(pre[i]), i);
+    return idx;
+  }
+
+  // 当前盘面偏离原路几步（0 = 还在原路上）
+  function offTrackSteps(){
+    const pre = S.prefix || [];
+    if(same(S.grid, S.target)) return 0;
+    const idx = trackIndex();
+    if(idx.has(keyOf(S.grid))) return 0;
+    for(let i=S.history.length-1;i>=0;i--){
+      if(idx.has(keyOf(S.history[i].grid))) return S.history.length - i;
+    }
+    return pre.length ? -1 : 0;
   }
 
   function findHint(){
-    const n = S.n, pre = S.prefix || [], sol = S.solution || [];
-    const preIdx = new Map();
-    for(let i=0;i<pre.length-1;i++){
-      if(!preIdx.has(keyOf(pre[i]))) preIdx.set(keyOf(pre[i]), i);
-    }
+    const n = S.n, sol = S.solution || [];
+    const preIdx = trackIndex();
     const cur = keyOf(S.grid);
     if(preIdx.has(cur)) return sol[preIdx.get(cur)] || null;
 
-    const total = pre.length - 1;          // 解法总步数
+    const total = (S.prefix || []).length - 1;
     const seen = new Set([cur]);
     let layer = [{g:S.grid, first:null}];
-    let best = null;                        // {first, cost}
+    let best = null;
     for(let d=1; d<=3; d++){
       const next = [];
       for(const node of layer){
@@ -952,17 +1049,7 @@
       if(!next.length) break;
       layer = next;
     }
-    if(best) return best.first;
-
-    // 兜底：选让差异最小的那一步
-    let pick = null, least = Infinity;
-    for(const f of S.creases){
-      const g = applyFold(S.grid, n, f);
-      if(same(g, S.grid)) continue;
-      const d = diffCount(g, S.target);
-      if(d < least){ least = d; pick = f; }
-    }
-    return pick;
+    return best ? best.first : null;   // 救不回来就返回 null，交给上层提示撤销
   }
 
   /* ==================== 演示动画 ==================== */
@@ -1060,16 +1147,35 @@
 
   $('#b-hint').addEventListener('click', () => {
     if(!S.running || S.folding) return;
-    const t0 = performance.now();
     const f = findHint();
-    if(!f){ toast('这一局走散了，点「重来」回到起点最快'); return; }
+    if(!f){
+      // 折偏了：这局已经回不去原路，别硬给一步误导，直接指路撤销
+      hideHint();
+      const back = offTrackSteps();
+      if(back > 0){
+        toast('这一步折偏了 · 先撤销 ' + back + ' 下回原路');
+        pulseUndo();
+      } else {
+        toast('这局已经折散了 · 点「重来」回到起点最快');
+      }
+      return;
+    }
     showHint(f, true);
     // 高亮留久一点，下一次折叠才会消失
     setTimeout(() => { if(S.hl) S.hl.classList.remove('on'); }, 9000);
     clearTimeout(coach._t);
     coach._t = setTimeout(hideCoach, 8000);
-    if(performance.now() - t0 > 260) console.debug('hint ms', Math.round(performance.now() - t0));
   });
+
+  let undoTimer = 0;
+  function pulseUndo(){
+    const b = $('#b-undo');
+    b.classList.remove('pulse');
+    void b.offsetWidth;
+    b.classList.add('pulse');
+    clearTimeout(undoTimer);
+    undoTimer = setTimeout(() => b.classList.remove('pulse'), 2200);
+  }
 
   $('#b-help').addEventListener('click', () => {
     if(S.running){
