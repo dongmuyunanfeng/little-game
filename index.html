@@ -361,7 +361,7 @@
     grid: [], initial: [], target: [],
     tris: [], moves: 0, history: [],
     creases: [], folding: false, running: false,
-    started: 0, pausedAt: 0, timerId: 0,
+    started: 0, acc: 0, timerId: 0,
     solved: +(localStorage.getItem('fy_solved') || 0)
   };
 
@@ -638,7 +638,7 @@
     const p = makePuzzle(S.diff);
     S.n = p.n; S.colors = p.colors; S.par = p.par;
     S.grid = p.grid.slice(); S.initial = p.grid.slice(); S.target = p.target.slice();
-    S.moves = 0; S.history = []; S.folding = false;
+    S.moves = 0; S.history = []; S.folding = false; S.acc = 0;
 
     S.tris = render(boardEl, S.n, S.grid);
     render(targetEl, S.n, S.target);
@@ -660,11 +660,10 @@
     $('#ov-start').hidden = true;
     $('#ov-win').hidden = true;
     S.running = true;
-    S.started = Date.now();
+    S.started = Date.now() - (S.acc || 0);
     S.folding = false;
     clearInterval(S.timerId);
     S.timerId = setInterval(tick, 200);
-    sTime.textContent = '00:00';
     stopDemo();
   }
 
@@ -817,7 +816,7 @@
     if(S.folding) return;
     S.grid = S.initial.slice(); S.history = []; S.moves = 0;
     paint(); sMoves.textContent = '0';
-    S.started = Date.now(); S.running = true;
+    S.started = Date.now(); S.running = true; S.acc = 0;
     hideHint();
     toast('已回到初始盘面');
   });
@@ -844,15 +843,19 @@
   });
 
   $('#b-help').addEventListener('click', () => {
-    if(S.running){ S.running = false; clearInterval(S.timerId); }
-    $('#b-start').textContent = '继 续 挑 战';
+    if(S.running){
+      S.acc = Date.now() - S.started;
+      S.running = false;
+      clearInterval(S.timerId);
+      $('#b-start').textContent = '继 续 挑 战';
+    }
     $('#ov-start').hidden = false;
     startDemo();
   });
 
   $('#b-next').addEventListener('click', () => { newPuzzle(S.diff); beginPlay(); });
   $('#b-again').addEventListener('click', () => {
-    S.grid = S.initial.slice(); S.history = []; S.moves = 0;
+    S.grid = S.initial.slice(); S.history = []; S.moves = 0; S.acc = 0;
     paint(); sMoves.textContent = '0';
     beginPlay();
   });
