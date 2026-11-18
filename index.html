@@ -56,12 +56,22 @@
     -webkit-background-clip:text;background-clip:text;color:transparent}
   .brand p{margin:2px 0 0;font-size:10px;letter-spacing:.34em;color:var(--muted)}
 
-  .stats{display:flex;gap:7px;margin-left:auto}
+  .stats{display:flex;gap:7px;margin-left:auto;align-items:stretch}
   .stat{min-width:74px;padding:6px 11px;border-radius:10px;background:var(--panel);
     border:1px solid var(--line);display:flex;flex-direction:column;gap:1px}
   .stat span{font-size:9.5px;letter-spacing:.2em;color:var(--muted)}
   .stat b{font-size:16px;font-variant-numeric:tabular-nums;font-weight:600}
   .stat.hot b{color:var(--gold)}
+  .stat.time{min-width:104px;border-color:rgba(69,216,245,.34);
+    background:linear-gradient(160deg,rgba(69,216,245,.14),rgba(69,216,245,.03))}
+  .stat.time b{font-size:23px;line-height:1.1;letter-spacing:.02em;color:#eafaff;
+    text-shadow:0 0 16px rgba(69,216,245,.45)}
+  .stat.time.off b{color:#7d8ba6;text-shadow:none}
+  .led{display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--cyan);
+    margin-right:5px;vertical-align:1px;box-shadow:0 0 8px rgba(69,216,245,.9);
+    animation:blink 1.5s ease-in-out infinite}
+  .stat.time.off .led{background:#5a6785;box-shadow:none;animation:none}
+  @keyframes blink{50%{opacity:.2}}
 
   .tools{display:flex;gap:7px}
   button{font-family:inherit;cursor:pointer;border:none;color:var(--text);
@@ -71,8 +81,23 @@
     background:rgba(255,255,255,.05);border:1px solid var(--line)}
   .ghost:hover{background:rgba(255,255,255,.11);border-color:rgba(140,190,255,.3)}
   .ghost:disabled{opacity:.3;cursor:default}
+  .hint-btn{background:linear-gradient(150deg,rgba(69,216,245,.22),rgba(69,216,245,.05));
+    border-color:rgba(69,216,245,.45);color:#d7f6ff}
+  .hint-btn:hover{background:rgba(69,216,245,.3);border-color:rgba(120,235,255,.75)}
   .icon-btn{width:36px;height:36px;border-radius:10px;background:rgba(255,255,255,.05);
     border:1px solid var(--line);font-size:14px}
+
+  /* 下一步提示条 */
+  .coach{position:absolute;left:50%;top:9px;z-index:14;pointer-events:none;
+    display:flex;align-items:center;gap:7px;max-width:calc(100% - 24px);
+    padding:7px 14px;border-radius:999px;font-size:12.5px;letter-spacing:.03em;white-space:nowrap;
+    background:rgba(7,14,26,.93);border:1px solid rgba(69,216,245,.6);color:#dcf7ff;
+    box-shadow:0 14px 32px -12px rgba(0,0,0,.95), 0 0 24px -6px rgba(69,216,245,.55);
+    opacity:0;transform:translate(-50%,-10px);
+    transition:opacity .2s,transform .22s cubic-bezier(.2,.8,.2,1)}
+  .coach.on{opacity:1;transform:translate(-50%,0)}
+  .coach i{font-style:normal;color:var(--cyan);font-size:14px;line-height:1}
+  .coach b{color:#fff;font-weight:600}
   .icon-btn:hover{background:rgba(255,255,255,.11)}
   .icon-btn.off{color:#4a5776}
 
@@ -128,7 +153,7 @@
   .hl polygon{fill:rgba(255,255,255,.125);stroke:rgba(255,255,255,.95);stroke-width:2;
     vector-effect:non-scaling-stroke;stroke-linejoin:round;
     filter:drop-shadow(0 0 10px rgba(255,255,255,.55))}
-  .hl.solved polygon{fill:rgba(69,216,245,.2);stroke:rgba(150,242,255,.98);
+  .hl.solved polygon{fill:rgba(69,216,245,.18);stroke:rgba(150,242,255,.98);
     filter:drop-shadow(0 0 12px rgba(69,216,245,.85))}
 
   .tip{position:absolute;z-index:6;pointer-events:none;opacity:0;transition:opacity .16s,transform .16s;
@@ -249,7 +274,7 @@
       <div><h1>缤纷叠影</h1><p>FOLD & MIRROR</p></div>
     </div>
     <div class="stats">
-      <div class="stat"><span>用时</span><b id="s-time">00:00</b></div>
+      <div class="stat time"><span><i class="led" id="s-led"></i>计时</span><b id="s-time">00:00</b></div>
       <div class="stat"><span>步数</span><b id="s-moves">0</b></div>
       <div class="stat hot"><span>参考步</span><b id="s-par">—</b></div>
     </div>
@@ -257,7 +282,7 @@
       <button class="ghost" id="b-undo">撤销</button>
       <button class="ghost" id="b-reset">重来</button>
       <button class="ghost" id="b-new">换题</button>
-      <button class="ghost" id="b-hint">提示</button>
+      <button class="ghost hint-btn" id="b-hint">提示下一步</button>
       <button class="icon-btn" id="b-help" title="玩法">?</button>
     </div>
   </header>
@@ -265,7 +290,10 @@
   <main class="boards">
     <section class="board-col">
       <div class="col-head"><span class="dot"></span><b>原图</b><em>沿折痕折叠</em></div>
-      <div class="frame" id="frameL"><div class="board" id="board"></div></div>
+      <div class="frame" id="frameL">
+        <div class="coach" id="coach"><i id="coach-ic">↘</i><span id="coach-tx"></span></div>
+        <div class="board" id="board"></div>
+      </div>
     </section>
 
     <div class="mid"><span>折成</span><b>→</b></div>
@@ -292,7 +320,7 @@
           <div class="rule"><div class="n">01 / 折痕</div><p>格线是<b>横折、竖折</b>的折痕，每格的两条对角线是<b>斜折</b>的折痕 —— 三种方向都能折。</p></div>
           <div class="rule"><div class="n">02 / 翻折</div><p>只能把<b>较少的一侧</b>折过去；斜折折走的是<b>角上的三角形</b>。</p></div>
           <div class="rule"><div class="n">03 / 镜像</div><p>翻面时三角色块按折痕<b>镜像</b>，覆盖对面原有的颜色。</p></div>
-          <div class="rule"><div class="n">04 / 还原</div><p>颜色与结果图完全一致即通关，不限步数，用时与步数计分。</p></div>
+          <div class="rule"><div class="n">04 / 还原</div><p>颜色与结果图一致即通关。左上<b>计时一路累加、不限时</b>；卡住就点<b>「提示下一步」</b>，会高亮该折的那条折痕并说明怎么折。</p></div>
         </div>
 
         <div class="pick" id="pick"></div>
@@ -353,6 +381,7 @@
   const $ = s => document.querySelector(s);
   const boardEl = $('#board'), targetEl = $('#target');
   const sTime = $('#s-time'), sMoves = $('#s-moves'), sPar = $('#s-par');
+  const timeStat = sTime.parentElement, coachEl = $('#coach');
 
   const S = {
     diff: localStorage.getItem('fy_diff') || 'mid',
@@ -508,6 +537,17 @@
     if(f.kind === 'd') return f.dir > 0 ? '↙' : '↗';
     return f.dir > 0 ? '↖' : '↘';
   }
+  // 一句人话说明这一步怎么折
+  function foldAdvice(f){
+    if(f.kind === 'v') return f.dir < 0 ? ('把最左边 ' + f.size + ' 列折向右')
+                                        : ('把最右边 ' + f.size + ' 列折向左');
+    if(f.kind === 'h') return f.dir < 0 ? ('把最上边 ' + f.size + ' 行折向下')
+                                        : ('把最下边 ' + f.size + ' 行折向上');
+    if(f.kind === 'd'){
+      return f.dir > 0 ? ('把右上角的三角形折向左下') : ('把左下角的三角形折向右上');
+    }
+    return f.dir > 0 ? ('把右下角的三角形折向左上') : ('把左上角的三角形折向右下');
+  }
 
   /* ==================== 出题 ==================== */
   // 随机彩纸 → 依次折 k 次，折出来的样子就是结果图（所以必然有解：照同一条路走一遍即可）
@@ -659,11 +699,23 @@
     S.tipEl.innerHTML = '<i>' + foldArrow(f) + '</i>' + foldLabel(f);
     S.tipEl.style.left = cx + '%';
     S.tipEl.style.top = cy + '%';
-    S.tipEl.classList.add('on');
+    // 用「提示下一步」时只留顶部那条说明，盘面上不再叠标签
+    S.tipEl.classList.toggle('on', !solved);
+    if(solved) coach('<i>' + foldArrow(f) + '</i><b>下一步：</b>' + foldAdvice(f));
   }
   function hideHint(){
     if(S.hl) S.hl.classList.remove('on');
     if(S.tipEl) S.tipEl.classList.remove('on');
+  }
+  function coach(html, ms){
+    coachEl.innerHTML = html;
+    coachEl.classList.add('on');
+    clearTimeout(coach._t);
+    if(ms) coach._t = setTimeout(hideCoach, ms);
+  }
+  function hideCoach(){
+    clearTimeout(coach._t);
+    if(coachEl) coachEl.classList.remove('on');
   }
 
   /* ==================== 折叠动画 ==================== */
@@ -702,6 +754,7 @@
     if(S.folding || !S.running) return;
     S.folding = true;
     hideHint();
+    hideCoach();
 
     const n = S.n;
     const {flap, geom} = makeFlap(n, S.grid, f);
@@ -760,10 +813,15 @@
     return String(Math.floor(t/60)).padStart(2,'0') + ':' + String(t%60).padStart(2,'0');
   }
   function tick(){ if(S.running) sTime.textContent = fmt(Date.now() - S.started); }
+  function setRunning(on){
+    timeStat.classList.toggle('off', !on);
+    if(on) tick();
+  }
 
   function newPuzzle(key){
     if(key) S.diff = key;
     localStorage.setItem('fy_diff', S.diff);
+    hideCoach();
     const p = makePuzzle(S.diff);
     S.n = p.n; S.colors = p.colors; S.par = p.par;
     S.grid = p.grid.slice(); S.initial = p.grid.slice(); S.target = p.target.slice();
@@ -811,6 +869,7 @@
     S.folding = false;
     clearInterval(S.timerId);
     S.timerId = setInterval(tick, 200);
+    setRunning(true);
     stopDemo();
   }
 
@@ -818,6 +877,9 @@
     if(!S.running || !same(S.grid, S.target)) return;
     S.running = false;
     clearInterval(S.timerId);
+    setRunning(false);
+    hideHint();
+    hideCoach();
     const used = Date.now() - S.started;
     S.solved++;
     localStorage.setItem('fy_solved', S.solved);
@@ -842,35 +904,65 @@
   }
 
   /* ==================== 提示 ==================== */
+  // 目标：永远给得出「下一步点哪条折痕」
+  //   1) 还在出题解法上 → 直接给下一步（再长的解法也能提示）
+  //   2) 走偏了 → 3 层搜索里挑总步数最少的一条：折到终点，或折回解法轨道
+  //   3) 都不行 → 给与目标差异最小的那一步（尽量往对的方向推）
+  function keyOf(g){ return g.join(''); }
+
+  function diffCount(g, t){
+    let d = 0;
+    for(let i=0;i<g.length;i++) if(g[i] !== t[i]) d++;
+    return d;
+  }
+
   function findHint(){
-    // 1) 如果当前盘面还在出题解法上，直接给下一步（大步数也能提示）
-    const pre = S.prefix || [];
+    const n = S.n, pre = S.prefix || [], sol = S.solution || [];
+    const preIdx = new Map();
     for(let i=0;i<pre.length-1;i++){
-      if(same(S.grid, pre[i]) && S.solution[i]) return S.solution[i];
+      if(!preIdx.has(keyOf(pre[i]))) preIdx.set(keyOf(pre[i]), i);
     }
-    // 2) 否则做 3 层 BFS
-    const n = S.n;
-    const key = g => g.join('');
-    const seen = new Set([key(S.grid)]);
+    const cur = keyOf(S.grid);
+    if(preIdx.has(cur)) return sol[preIdx.get(cur)] || null;
+
+    const total = pre.length - 1;          // 解法总步数
+    const seen = new Set([cur]);
     let layer = [{g:S.grid, first:null}];
-    for(let d=0; d<3; d++){
+    let best = null;                        // {first, cost}
+    for(let d=1; d<=3; d++){
       const next = [];
       for(const node of layer){
         for(const f of S.creases){
           const g = applyFold(node.g, n, f);
           if(same(g, node.g)) continue;
-          const k = key(g);
+          const k = keyOf(g);
           if(seen.has(k)) continue;
           seen.add(k);
           const first = node.first || f;
-          if(same(g, S.target)) return first;
-          next.push({g, first});
+          if(same(g, S.target)){
+            if(!best || d < best.cost) best = {first, cost:d};
+          } else if(preIdx.has(k)){
+            const cost = d + (total - preIdx.get(k));
+            if(!best || cost < best.cost) best = {first, cost};
+          }
+          if(next.length < 3000) next.push({g, first});
         }
       }
+      if(best && best.cost <= d) break;
       if(!next.length) break;
       layer = next;
     }
-    return null;
+    if(best) return best.first;
+
+    // 兜底：选让差异最小的那一步
+    let pick = null, least = Infinity;
+    for(const f of S.creases){
+      const g = applyFold(S.grid, n, f);
+      if(same(g, S.grid)) continue;
+      const d = diffCount(g, S.target);
+      if(d < least){ least = d; pick = f; }
+    }
+    return pick;
   }
 
   /* ==================== 演示动画 ==================== */
@@ -952,24 +1044,31 @@
     S.grid = S.initial.slice(); S.history = []; S.moves = 0;
     paint(); sMoves.textContent = '0';
     S.started = Date.now(); S.running = true; S.acc = 0;
-    hideHint();
+    hideHint(); hideCoach();
+    setRunning(true);
     toast('已回到初始盘面');
   });
 
   $('#b-new').addEventListener('click', () => {
     if(S.folding) return;
     newPuzzle(S.diff);
-    S.started = Date.now();
+    S.started = Date.now(); S.acc = 0;
+    hideCoach();
+    setRunning(S.running);
     toast('换新题目');
   });
 
   $('#b-hint').addEventListener('click', () => {
     if(!S.running || S.folding) return;
+    const t0 = performance.now();
     const f = findHint();
-    if(!f){ toast('这一步走远了，试试「重来」'); return; }
+    if(!f){ toast('这一局走散了，点「重来」回到起点最快'); return; }
     showHint(f, true);
-    toast('试试这条折痕 · ' + foldLabel(f));
-    setTimeout(() => S.hl.classList.remove('on'), 2200);
+    // 高亮留久一点，下一次折叠才会消失
+    setTimeout(() => { if(S.hl) S.hl.classList.remove('on'); }, 9000);
+    clearTimeout(coach._t);
+    coach._t = setTimeout(hideCoach, 8000);
+    if(performance.now() - t0 > 260) console.debug('hint ms', Math.round(performance.now() - t0));
   });
 
   $('#b-help').addEventListener('click', () => {
@@ -977,9 +1076,11 @@
       S.acc = Date.now() - S.started;
       S.running = false;
       clearInterval(S.timerId);
+      setRunning(false);
       $('#b-start').textContent = '继 续 挑 战';
     }
     $('#ov-start').hidden = false;
+    hideHint(); hideCoach();
     startDemo();
   });
 
@@ -1000,6 +1101,7 @@
   buildPick();
   newPuzzle(S.diff);
   S.running = false;
+  setRunning(false);
   startDemo();
 })();
 </script>
