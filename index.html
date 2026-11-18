@@ -117,20 +117,19 @@
   .lat{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2}
   .lat line{stroke:rgba(4,8,16,.8);stroke-width:1.3;vector-effect:non-scaling-stroke;stroke-linecap:square}
 
-  .crease{position:absolute;z-index:6;cursor:pointer}
-  .crease.v{top:0;bottom:0;width:20px;transform:translateX(-50%)}
-  .crease.h{left:0;right:0;height:20px;transform:translateY(-50%)}
-  .crease::after{content:"";position:absolute;inset:0;border-radius:3px;transition:background .15s}
-  .crease:hover::after{background:rgba(255,255,255,.1)}
+  .crease{position:absolute;z-index:6;cursor:pointer;border-radius:4px}
+  .crease::after{content:"";position:absolute;inset:0;border-radius:4px;transition:background .15s}
+  .crease:hover::after{background:rgba(255,255,255,.13)}
+  .crease.v,.crease.h{z-index:7}
 
-  .hint{position:absolute;z-index:5;pointer-events:none;opacity:0;transition:opacity .16s;
-    background:rgba(255,255,255,.15);border-radius:2px;
-    box-shadow:inset 0 0 0 2px rgba(255,255,255,.95), inset 0 0 60px rgba(255,255,255,.2),
-               0 0 30px rgba(255,255,255,.25)}
-  .hint.on{opacity:1}
-  .hint.solved{background:rgba(69,216,245,.24);
-    box-shadow:inset 0 0 0 2px rgba(120,235,255,.95), inset 0 0 60px rgba(69,216,245,.3),
-               0 0 34px rgba(69,216,245,.55)}
+  .hl{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:5;
+    opacity:0;transition:opacity .16s}
+  .hl.on{opacity:1}
+  .hl polygon{fill:rgba(255,255,255,.125);stroke:rgba(255,255,255,.95);stroke-width:2;
+    vector-effect:non-scaling-stroke;stroke-linejoin:round;
+    filter:drop-shadow(0 0 10px rgba(255,255,255,.55))}
+  .hl.solved polygon{fill:rgba(69,216,245,.2);stroke:rgba(150,242,255,.98);
+    filter:drop-shadow(0 0 12px rgba(69,216,245,.85))}
 
   .tip{position:absolute;z-index:6;pointer-events:none;opacity:0;transition:opacity .16s,transform .16s;
     transform:translate(-50%,-50%) scale(.9);
@@ -287,12 +286,12 @@
       <div>
         <div class="kicker">空间 · 推理 · 折叠还原</div>
         <h1 class="title">缤纷叠影</h1>
-        <p class="sub">一整张三角彩纸，格线与对角线都是折痕。<br>把左侧原图沿折痕折成右侧结果图。</p>
+        <p class="sub">一整张三角彩纸，横、竖、斜任何一个方向都能折。<br>把左侧原图沿折痕折成右侧结果图。</p>
 
         <div class="rules">
-          <div class="rule"><div class="n">01 / 折痕</div><p>方格线与两条对角线就是<b>折痕</b>，鼠标移到折痕上会亮起要折走的一侧。</p></div>
-          <div class="rule"><div class="n">02 / 翻折</div><p>只能把<b>较少的一侧</b>折过去；两侧等宽时折左 / 上侧。</p></div>
-          <div class="rule"><div class="n">03 / 镜像</div><p>翻面时三角色块左右或上下<b>镜像</b>，覆盖对面原有的颜色。</p></div>
+          <div class="rule"><div class="n">01 / 折痕</div><p>格线是<b>横折、竖折</b>的折痕，每格的两条对角线是<b>斜折</b>的折痕 —— 三种方向都能折。</p></div>
+          <div class="rule"><div class="n">02 / 翻折</div><p>只能把<b>较少的一侧</b>折过去；斜折折走的是<b>角上的三角形</b>。</p></div>
+          <div class="rule"><div class="n">03 / 镜像</div><p>翻面时三角色块按折痕<b>镜像</b>，覆盖对面原有的颜色。</p></div>
           <div class="rule"><div class="n">04 / 还原</div><p>颜色与结果图完全一致即通关，不限步数，用时与步数计分。</p></div>
         </div>
 
@@ -366,56 +365,155 @@
   };
 
   /* ==================== 折叠运算 ==================== */
-  // 折痕：v/i 表示第 i 条竖线（i=1..n-1），左侧宽 i，右侧宽 n-i
+  // 折痕有四类，盘面是「每格四条对角线」的三角网格，所以横、竖、斜都能折：
+  //   v: x = c     竖折
+  //   h: y = c     横折
+  //   d: x - y = c 斜折（右上-左下）
+  //   a: x + y = c 斜折（左上-右下）
+  // 只能折面积较小的一侧；斜折时被折走的是角上的三角形。
+  function makeFold(n, kind, c){
+    const N = n*n;
+    let plus;                                   // 折线正侧（side>0）的面积
+    if(kind === 'v' || kind === 'h') plus = (n-c)*n;
+    else if(kind === 'd') plus = c >= 0 ? (n-c)*(n-c)/2 : N - (n+c)*(n+c)/2;
+    else plus = c <= n ? N - c*c/2 : (2*n-c)*(2*n-c)/2;
+    const dir = plus <= N - plus ? 1 : -1;      // 折较小的一侧
+    let size, leg = 0;
+    if(kind === 'v' || kind === 'h') size = Math.min(c, n-c);
+    else if(kind === 'd') size = leg = dir > 0 ? n - c : n + c;
+    else size = leg = dir > 0 ? 2*n - c : c;
+    const area = leg ? leg*leg/2 : size*n;
+    return {kind, c, dir, size, area};
+  }
+
   function allCreases(n){
     const out = [];
-    for(let i=1;i<n;i++){
-      out.push({axis:'v', i, dir: i <= n-i ? 'pos' : 'neg', size: Math.min(i, n-i)});
-      out.push({axis:'h', i, dir: i <= n-i ? 'pos' : 'neg', size: Math.min(i, n-i)});
-    }
+    for(let c=1;c<n;c++){ out.push(makeFold(n,'v',c)); out.push(makeFold(n,'h',c)); }
+    for(let c=-(n-1);c<=n-1;c++) out.push(makeFold(n,'d',c));
+    for(let c=1;c<=2*n-1;c++) out.push(makeFold(n,'a',c));
     return out;
   }
 
-  // 镜像覆盖：源侧翻面，三角类型左右/上下互换
-  function applyFold(g, n, f){
-    const out = g.slice();
-    const i = f.i, k = 2*i - 1;
-    if(f.axis === 'v'){
-      const x0 = f.dir === 'pos' ? 0 : i;
-      const x1 = f.dir === 'pos' ? i : n;
-      for(let y=0;y<n;y++){
-        const row = y*n;
-        for(let x=x0;x<x1;x++){
-          const s = (row + x)*4, d = (row + (k-x))*4;
-          out[d]   = g[s];
-          out[d+1] = g[s+3];
-          out[d+2] = g[s+2];
-          out[d+3] = g[s+1];
-        }
-      }
-    } else {
-      const y0 = f.dir === 'pos' ? 0 : i;
-      const y1 = f.dir === 'pos' ? i : n;
-      for(let y=y0;y<y1;y++){
-        const row = y*n;
-        for(let x=0;x<n;x++){
-          const s = (row + x)*4, d = ((k-y)*n + x)*4;
-          out[d]   = g[s+2];
-          out[d+1] = g[s+1];
-          out[d+2] = g[s];
-          out[d+3] = g[s+3];
-        }
-      }
+  function sideOf(f, x, y){
+    if(f.kind === 'v') return x - f.c;
+    if(f.kind === 'h') return y - f.c;
+    if(f.kind === 'd') return x - y - f.c;
+    return x + y - f.c;
+  }
+
+  // 三角重心（格内局部坐标：T 上 / R 右 / B 下 / L 左）
+  function centroid(x, y, t){
+    if(t === 0) return [x + .5, y + 1/6];
+    if(t === 1) return [x + 5/6, y + .5];
+    if(t === 2) return [x + .5, y + 5/6];
+    return [x + 1/6, y + .5];
+  }
+
+  // 反查：点落在哪个三角里（网格被 4 条半对角线切分，重心永远不在边界上）
+  function triAt(n, px, py){
+    let cx = Math.floor(px), cy = Math.floor(py);
+    if(cx < 0) cx = 0;
+    if(cy < 0) cy = 0;
+    if(cx >= n) cx = n-1;
+    if(cy >= n) cy = n-1;
+    const u = px - cx, v = py - cy;
+    let t = 3;
+    if(v < u && v < 1-u) t = 0;
+    else if(u > v && u > 1-v) t = 1;
+    else if(v > u && v > 1-u) t = 2;
+    return (cy*n + cx)*4 + t;
+  }
+
+  // 折痕 → 覆盖映射（与盘面无关，只跟 n 和折痕有关，缓存起来）
+  const FOLDMAP = Object.create(null);
+  function foldMap(n, f){
+    const k = n + '|' + f.kind + '|' + f.c + '|' + f.dir;
+    if(FOLDMAP[k]) return FOLDMAP[k];
+    const src = [], dst = [];
+    for(let y=0;y<n;y++) for(let x=0;x<n;x++) for(let t=0;t<4;t++){
+      const p = centroid(x, y, t);
+      if(sideOf(f, p[0], p[1]) * f.dir <= 0) continue;
+      let rx, ry;
+      if(f.kind === 'v'){ rx = 2*f.c - p[0]; ry = p[1]; }
+      else if(f.kind === 'h'){ rx = p[0]; ry = 2*f.c - p[1]; }
+      else if(f.kind === 'd'){ rx = p[1] + f.c; ry = p[0] - f.c; }
+      else { rx = f.c - p[1]; ry = f.c - p[0]; }
+      if(rx < -1e-9 || ry < -1e-9 || rx > n+1e-9 || ry > n+1e-9) continue;
+      src.push((y*n+x)*4 + t);
+      dst.push(triAt(n, rx, ry));
     }
+    FOLDMAP[k] = {src, dst};
+    return FOLDMAP[k];
+  }
+
+  function applyFold(g, n, f){
+    const m = foldMap(n, f), out = g.slice();
+    for(let i=0;i<m.dst.length;i++) out[m.dst[i]] = g[m.src[i]];
     return out;
+  }
+
+  // 被折走那一侧的轮廓（用于高亮与折叠动画）
+  function flapPoly(n, f){
+    const c = f.c;
+    if(f.kind === 'v') return f.dir < 0 ? [[0,0],[c,0],[c,n],[0,n]] : [[c,0],[n,0],[n,n],[c,n]];
+    if(f.kind === 'h') return f.dir < 0 ? [[0,0],[n,0],[n,c],[0,c]] : [[0,c],[n,c],[n,n],[0,n]];
+    if(f.kind === 'd') return f.dir > 0 ? [[c,0],[n,0],[n,n-c]] : [[0,-c],[0,n],[n+c,n]];
+    return f.dir > 0 ? [[c-n,n],[n,n],[n,c-n]] : [[0,0],[c,0],[0,c]];
+  }
+
+  function flapGeom(n, f){
+    const poly = flapPoly(n, f);
+    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+    for(const p of poly){
+      if(p[0] < x0) x0 = p[0];
+      if(p[1] < y0) y0 = p[1];
+      if(p[0] > x1) x1 = p[0];
+      if(p[1] > y1) y1 = p[1];
+    }
+    const w = x1 - x0, h = y1 - y0;
+    const g = {
+      poly, x0, y0, w, h,
+      left: x0/n*100, top: y0/n*100, width: w/n*100, height: h/n*100,
+      clip: poly.map(p => ((p[0]-x0)/w*100).toFixed(4) + '% ' + ((p[1]-y0)/h*100).toFixed(4) + '%').join(', ')
+    };
+    if(f.kind === 'v'){
+      g.origin = (f.dir < 0 ? '100%' : '0%') + ' 50%';
+      g.from = 'rotateY(0deg)'; g.to = 'rotateY(180deg)';
+    } else if(f.kind === 'h'){
+      g.origin = '50% ' + (f.dir < 0 ? '100%' : '0%');
+      g.from = 'rotateX(0deg)'; g.to = 'rotateX(180deg)';
+    } else if(f.kind === 'd'){
+      // 绕盘面内 45° 轴翻折：旋转共轭 = 对折线做镜面反射
+      g.origin = '0% 0%';
+      g.from = 'rotate(-45deg) rotateY(0deg) rotate(45deg)';
+      g.to   = 'rotate(-45deg) rotateY(180deg) rotate(45deg)';
+    } else {
+      g.origin = f.dir > 0 ? '0% 100%' : '100% 0%';
+      g.from = 'rotate(45deg) rotateY(0deg) rotate(-45deg)';
+      g.to   = 'rotate(45deg) rotateY(180deg) rotate(-45deg)';
+    }
+    return g;
   }
 
   const same = (a,b) => a.length === b.length && a.every((v,i)=>v === b[i]);
 
+  function foldLabel(f){
+    if(f.kind === 'v') return '竖折 ' + f.size + ' 列';
+    if(f.kind === 'h') return '横折 ' + f.size + ' 行';
+    return '斜折 ' + f.size + ' 格';
+  }
+  function foldArrow(f){
+    if(f.kind === 'v') return f.dir < 0 ? '▶' : '◀';
+    if(f.kind === 'h') return f.dir < 0 ? '▼' : '▲';
+    if(f.kind === 'd') return f.dir > 0 ? '↙' : '↗';
+    return f.dir > 0 ? '↖' : '↘';
+  }
+
   /* ==================== 出题 ==================== */
+  // 随机彩纸 → 依次折 k 次，折出来的样子就是结果图（所以必然有解：照同一条路走一遍即可）
   function makePuzzle(key){
     const d = DIFFS[key], n = d.n;
-    for(let attempt=0; attempt<50; attempt++){
+    for(let attempt=0; attempt<70; attempt++){
       let g = new Array(n*n*4);
       for(let c=0;c<n*n;c++){
         const base = (Math.random()*d.colors)|0;
@@ -423,25 +521,35 @@
       }
       const init = g.slice();
       const list = allCreases(n);
-      let applied = 0, guard = 0;
-      while(applied < d.folds && guard < 400){
+      const path = [];
+      let guard = 0, diag = 0, big = 0;
+      while(path.length < d.folds && guard < 600){
         guard++;
-        const cands = list.filter(f => !same(applyFold(g,n,f), g));
+        const cands = list.filter(f => f.area >= 1.5 && !same(applyFold(g,n,f), g));
         if(!cands.length) break;
-        // 偏向小面积折叠，保持盘面色彩丰富
+        // 偏向中小面积折叠：既保留色彩层次，又让折痕一眼看得见；
+        // 横竖折加权，避免整局都在折角上的三角形
         let total = 0;
-        const w = cands.map(f => { const v = 1/(f.size*f.size*4); total += v; return v; });
+        const w = cands.map(f => {
+          const kw = (f.kind === 'v' || f.kind === 'h') ? 2 : 1;
+          const v = kw/(Math.sqrt(f.area) + .5); total += v; return v;
+        });
         let r = Math.random()*total, pick = cands[cands.length-1];
         for(let i=0;i<cands.length;i++){ r -= w[i]; if(r <= 0){ pick = cands[i]; break; } }
         g = applyFold(g, n, pick);
-        applied++;
+        path.push(pick);
+        if(pick.kind === 'd' || pick.kind === 'a') diag++;
+        if(pick.area > n*n/4) big++;
       }
+      if(path.length < 2) continue;
+      if(d.folds >= 3 && diag === 0) continue;      // 中高难度至少有一次斜折
+      if(big > 1) continue;                          // 不要连着折半张纸
       const colorsUsed = new Set(g).size;
-      if(applied === 0 || same(init, g) || colorsUsed < Math.min(3, d.colors)) continue;
-      return {n, colors:d.colors, grid:init, target:g, par:applied};
+      if(same(init, g) || colorsUsed < Math.min(3, d.colors)) continue;
+      return {n, colors:d.colors, grid:init, target:g, par:path.length, path};
     }
     const fb = new Array(n*n*4).fill(0);
-    return {n, colors:d.colors, grid:fb, target:fb.slice(), par:1};
+    return {n, colors:d.colors, grid:fb, target:fb.slice(), par:1, path:[]};
   }
 
   /* ==================== 渲染 ==================== */
@@ -499,16 +607,37 @@
   }
 
   /* ==================== 折痕交互 ==================== */
+  // 每类折痕在盘面上的点击条：竖/横整条，斜折是一条 45° 斜条
+  function creaseBox(n, f){
+    const c = f.c;
+    if(f.kind === 'v') return {left:c/n*100, top:50, w:'20px', h:'100%', rot:0};
+    if(f.kind === 'h') return {left:50, top:c/n*100, w:'100%', h:'20px', rot:0};
+    if(f.kind === 'd'){
+      return {
+        left:(n+c)/2/n*100, top:(n-c)/2/n*100,
+        w:((n-Math.abs(c))*Math.SQRT2/n*100)+'%', h:'18px', rot:45
+      };
+    }
+    return {
+      left:c/2/n*100, top:c/2/n*100,
+      w:(Math.min(c, 2*n-c)*Math.SQRT2/n*100)+'%', h:'18px', rot:-45
+    };
+  }
+
   function buildCreases(){
     const n = S.n;
     document.querySelectorAll('#board .crease').forEach(e => e.remove());
     S.creases = allCreases(n);
     S.creaseEls = [];
-    S.creases.forEach((f, idx) => {
+    S.creases.forEach(f => {
+      const box = creaseBox(n, f);
       const el = document.createElement('b');
-      el.className = 'crease ' + f.axis;
-      if(f.axis === 'v') el.style.left = (f.i/n*100) + '%';
-      else el.style.top = (f.i/n*100) + '%';
+      el.className = 'crease ' + f.kind;
+      el.style.left = box.left + '%';
+      el.style.top = box.top + '%';
+      el.style.width = box.w;
+      el.style.height = box.h;
+      el.style.transform = 'translate(-50%,-50%)' + (box.rot ? ' rotate(' + box.rot + 'deg)' : '');
       el.addEventListener('pointerenter', e => { if(e.pointerType !== 'touch') showHint(f); });
       el.addEventListener('pointerleave', () => hideHint());
       el.addEventListener('click', () => doFold(f));
@@ -517,73 +646,73 @@
     });
   }
 
-  function sourceRect(n, f){
-    if(f.axis === 'v'){
-      const x0 = f.dir === 'pos' ? 0 : f.i;
-      return {x0, y0:0, cw: f.size, ch: n};
-    }
-    const y0 = f.dir === 'pos' ? 0 : f.i;
-    return {x0:0, y0, cw: n, ch: f.size};
-  }
-
-  function showHint(f){
-    if(S.folding || !S.running) return;
-    const n = S.n, r = sourceRect(n, f);
-    const h = S.hintEl;
-    h.style.left = (r.x0/n*100) + '%';
-    h.style.top = (r.y0/n*100) + '%';
-    h.style.width = (r.cw/n*100) + '%';
-    h.style.height = (r.ch/n*100) + '%';
-    h.classList.add('on');
-    h.classList.remove('solved');
-    const arrow = f.axis === 'v' ? (f.dir === 'pos' ? '▶' : '◀') : (f.dir === 'pos' ? '▼' : '▲');
-    S.tipEl.innerHTML = '<i>' + arrow + '</i>折 ' + f.size + (f.axis === 'v' ? ' 列' : ' 行');
-    const px = f.axis === 'v' ? (f.i/n*100) : 50;
-    const py = f.axis === 'v' ? 50 : (f.i/n*100);
-    S.tipEl.style.left = px + '%';
-    S.tipEl.style.top = py + '%';
+  function showHint(f, solved){
+    if(S.folding || !S.running || !S.hlPoly) return;
+    const n = S.n, poly = flapPoly(n, f);
+    S.hlPoly.setAttribute('points', poly.map(p => p[0] + ',' + p[1]).join(' '));
+    S.hl.classList.add('on');
+    S.hl.classList.toggle('solved', !!solved);
+    let cx = 0, cy = 0;
+    for(const p of poly){ cx += p[0]; cy += p[1]; }
+    cx = Math.min(.84, Math.max(.16, cx / poly.length / n)) * 100;
+    cy = Math.min(.86, Math.max(.14, cy / poly.length / n)) * 100;
+    S.tipEl.innerHTML = '<i>' + foldArrow(f) + '</i>' + foldLabel(f);
+    S.tipEl.style.left = cx + '%';
+    S.tipEl.style.top = cy + '%';
     S.tipEl.classList.add('on');
   }
   function hideHint(){
-    if(S.hintEl) S.hintEl.classList.remove('on');
+    if(S.hl) S.hl.classList.remove('on');
     if(S.tipEl) S.tipEl.classList.remove('on');
   }
 
   /* ==================== 折叠动画 ==================== */
+  // 把被折走的那一侧克隆成一块「纸片」，绕折痕翻 180°（斜折用旋转共轭绕 45° 轴翻）
+  function makeFlap(n, grid, f){
+    const g = flapGeom(n, f);
+    const flap = document.createElement('div');
+    flap.className = 'flap';
+    flap.style.left = g.left + '%';
+    flap.style.top = g.top + '%';
+    flap.style.width = g.width + '%';
+    flap.style.height = g.height + '%';
+    if(f.kind === 'd' || f.kind === 'a') flap.style.clipPath = 'polygon(' + g.clip + ')';
+
+    const frag = document.createDocumentFragment();
+    for(let y=Math.floor(g.y0); y<Math.ceil(g.y1); y++){
+      for(let x=Math.floor(g.x0); x<Math.ceil(g.x1); x++){
+        for(let t=0;t<4;t++) frag.appendChild(triEl(x, y, t, n, grid, g.x0, g.y0, g.w, g.h));
+      }
+    }
+    flap.appendChild(frag);
+
+    const lat = makeLattice(n);
+    lat.style.left = (-g.x0/g.w*100) + '%';
+    lat.style.top = (-g.y0/g.h*100) + '%';
+    lat.style.width = (n/g.w*100) + '%';
+    lat.style.height = (n/g.h*100) + '%';
+    flap.appendChild(lat);
+
+    flap.style.transformOrigin = g.origin;
+    flap.style.transform = g.from;
+    return {flap, geom:g};
+  }
+
   function doFold(f){
     if(S.folding || !S.running) return;
     S.folding = true;
     hideHint();
 
-    const n = S.n, r = sourceRect(n, f);
-    const flap = document.createElement('div');
-    flap.className = 'flap';
-    flap.style.left   = (r.x0/n*100) + '%';
-    flap.style.top    = (r.y0/n*100) + '%';
-    flap.style.width  = (r.cw/n*100) + '%';
-    flap.style.height = (r.ch/n*100) + '%';
-
-    const frag = document.createDocumentFragment();
-    for(let y=r.y0;y<r.y0+r.ch;y++) for(let x=r.x0;x<r.x0+r.cw;x++) for(let t=0;t<4;t++){
-      frag.appendChild(triEl(x, y, t, n, S.grid, r.x0, r.y0, r.cw, r.ch));
-    }
-    flap.appendChild(frag);
-
-    const lat = makeLattice(n);
-    lat.style.left   = (-r.x0/r.cw*100) + '%';
-    lat.style.top    = (-r.y0/r.ch*100) + '%';
-    lat.style.width  = (n/r.cw*100) + '%';
-    lat.style.height = (n/r.ch*100) + '%';
-    flap.appendChild(lat);
-
-    if(f.axis === 'v') flap.style.transformOrigin = (f.dir === 'pos' ? '100%' : '0%') + ' 50%';
-    else flap.style.transformOrigin = '50% ' + (f.dir === 'pos' ? '100%' : '0%');
-
+    const n = S.n;
+    const {flap, geom} = makeFlap(n, S.grid, f);
+    // 小块折得快一点，翻面才看得清
+    const dur = f.area > 8 ? 560 : f.area > 3 ? 460 : 360;
+    flap.style.transitionDuration = dur + 'ms';
     boardEl.appendChild(flap);
 
     const next = applyFold(S.grid, n, f);
     requestAnimationFrame(() => requestAnimationFrame(() => {
-      flap.style.transform = f.axis === 'v' ? 'rotateY(180deg)' : 'rotateX(180deg)';
+      flap.style.transform = geom.to;
     }));
 
     let done = false;
@@ -596,12 +725,12 @@
       flap.remove();
       sMoves.textContent = S.moves;
       S.folding = false;
-      beep(f.axis === 'v' ? 520 : 400);
-      if(!same(S.grid, S.target)) toast('已折 ' + (f.axis === 'v' ? '竖' : '横') + ' ' + f.size + (f.axis === 'v' ? ' 列' : ' 行'));
+      beep(f.kind === 'v' ? 520 : f.kind === 'h' ? 400 : 620);
+      if(!same(S.grid, S.target)) toast('已' + foldLabel(f));
       checkWin();
     };
     flap.addEventListener('transitionend', finish, {once:true});
-    setTimeout(finish, DUR + 80);
+    setTimeout(finish, dur + 80);
   }
 
   /* ==================== 音效 ==================== */
@@ -644,10 +773,28 @@
     render(targetEl, S.n, S.target);
     buildCreases();
 
-    // 提示层
-    const hint = document.createElement('div'); hint.className = 'hint'; boardEl.appendChild(hint);
+    // 提示层：SVG 多边形，横/竖折是矩形，斜折是三角形
+    const hl = document.createElementNS(NS,'svg');
+    hl.setAttribute('class','hl');
+    hl.setAttribute('preserveAspectRatio','none');
+    hl.setAttribute('viewBox', '0 0 ' + S.n + ' ' + S.n);
+    const pg = document.createElementNS(NS,'polygon');
+    pg.setAttribute('points','');
+    hl.appendChild(pg);
+    boardEl.appendChild(hl);
     const tip = document.createElement('div'); tip.className = 'tip'; boardEl.appendChild(tip);
-    S.hintEl = hint; S.tipEl = tip;
+    S.hl = hl; S.hlPoly = pg; S.tipEl = tip;
+
+    // 出题解法（供「提示」使用）
+    S.solution = p.path || [];
+    S.prefix = [S.initial.slice()];
+    if(S.solution.length){
+      let g = S.initial.slice();
+      for(const f of S.solution){
+        g = applyFold(g, S.n, f);
+        S.prefix.push(g.slice());
+      }
+    }
 
     sMoves.textContent = '0';
     sPar.textContent = S.par;
@@ -694,8 +841,14 @@
     toast._t = setTimeout(() => t.classList.remove('on'), 1300);
   }
 
-  /* ==================== 提示（BFS 3 层） ==================== */
+  /* ==================== 提示 ==================== */
   function findHint(){
+    // 1) 如果当前盘面还在出题解法上，直接给下一步（大步数也能提示）
+    const pre = S.prefix || [];
+    for(let i=0;i<pre.length-1;i++){
+      if(same(S.grid, pre[i]) && S.solution[i]) return S.solution[i];
+    }
+    // 2) 否则做 3 层 BFS
     const n = S.n;
     const key = g => g.join('');
     const seen = new Set([key(S.grid)]);
@@ -739,41 +892,23 @@
       const st = demoState;
       if(!st) return;
       if(st.count > 7){ startDemo(); return; }
-      const list = allCreases(st.n).filter(f => !same(applyFold(st.grid, st.n, f), st.grid));
+      const list = allCreases(st.n)
+        .filter(f => !same(applyFold(st.grid, st.n, f), st.grid))
+        .sort((a,b) => a.area - b.area);
       if(!list.length){ startDemo(); return; }
-      const f = list[(Math.random()*list.length)|0];
-      const r = sourceRect(st.n, f);
-      const flap = document.createElement('div');
-      flap.className = 'flap';
-      flap.style.left = (r.x0/st.n*100)+'%';
-      flap.style.top = (r.y0/st.n*100)+'%';
-      flap.style.width = (r.cw/st.n*100)+'%';
-      flap.style.height = (r.ch/st.n*100)+'%';
-      const fr = document.createDocumentFragment();
-      for(let y=r.y0;y<r.y0+r.ch;y++) for(let x=r.x0;x<r.x0+r.cw;x++) for(let t=0;t<4;t++){
-        fr.appendChild(triEl(x,y,t,st.n,st.grid,r.x0,r.y0,r.cw,r.ch));
-      }
-      flap.appendChild(fr);
-      const lat = makeLattice(st.n);
-      lat.style.left = (-r.x0/r.cw*100)+'%';
-      lat.style.top = (-r.y0/r.ch*100)+'%';
-      lat.style.width = (st.n/r.cw*100)+'%';
-      lat.style.height = (st.n/r.ch*100)+'%';
-      flap.appendChild(lat);
-      if(f.axis === 'v') flap.style.transformOrigin = (f.dir==='pos'?'100%':'0%')+' 50%';
-      else flap.style.transformOrigin = '50% '+(f.dir==='pos'?'100%':'0%');
-      st.host.appendChild(flap);
-
+      const f = list[(Math.pow(Math.random(), 1.6) * list.length) | 0];
+      const made = makeFlap(st.n, st.grid, f);
+      st.host.appendChild(made.flap);
       const nx = applyFold(st.grid, st.n, f);
-      $('#demo-cap').textContent = (f.axis === 'v' ? '竖折 ' : '横折 ') + f.size + (f.axis === 'v' ? ' 列' : ' 行');
+      $('#demo-cap').textContent = foldLabel(f);
       requestAnimationFrame(() => requestAnimationFrame(() => {
-        flap.style.transform = f.axis === 'v' ? 'rotateY(180deg)' : 'rotateX(180deg)';
+        made.flap.style.transform = made.geom.to;
       }));
       setTimeout(() => {
         st.grid = nx; st.count++;
         const nodes = st.host.querySelectorAll('.tri');
         for(let i=0;i<nodes.length;i++) nodes[i].style.backgroundColor = PAL[st.grid[i] % PAL.length];
-        flap.remove();
+        made.flap.remove();
       }, DUR + 40);
       demoTimer = setTimeout(step, 1900);
     };
@@ -832,14 +967,9 @@
     if(!S.running || S.folding) return;
     const f = findHint();
     if(!f){ toast('这一步走远了，试试「重来」'); return; }
-    const n = S.n, r = sourceRect(n, f);
-    S.hintEl.style.left = (r.x0/n*100)+'%';
-    S.hintEl.style.top = (r.y0/n*100)+'%';
-    S.hintEl.style.width = (r.cw/n*100)+'%';
-    S.hintEl.style.height = (r.ch/n*100)+'%';
-    S.hintEl.classList.add('on','solved');
-    toast('试试这条折痕');
-    setTimeout(() => S.hintEl.classList.remove('on'), 2200);
+    showHint(f, true);
+    toast('试试这条折痕 · ' + foldLabel(f));
+    setTimeout(() => S.hl.classList.remove('on'), 2200);
   });
 
   $('#b-help').addEventListener('click', () => {
