@@ -89,15 +89,19 @@ npx serve .
 
 ### 1. 建仓库并推送
 
-先在 GitHub 网页上 **New repository**：名字填 `binfen-dieying`，可见性选 **Public**
-（免费版 Pages 只能发布公开仓库），**不要**勾「Add a README file」，然后复制下面的命令：
+当前仓库：<https://github.com/dongmuyunanfeng/little-game>，默认分支 `master`。
+
+如果代码还没推上去：GitHub 网页 **New repository** → 名字填 `little-game`，可见性选 **Public**
+（免费版 Pages 只能发布公开仓库），**不要**勾「Add a README file」，然后：
 
 ```bash
 cd binfen-dieying
-git remote add origin https://github.com/<你的用户名>/binfen-dieying.git
-git branch -M main
-git push -u origin main
+git remote add origin https://github.com/dongmuyunanfeng/little-game.git
+git push -u origin master
 ```
+
+想改成 `main` 分支就先 `git branch -M main` 再 `git push -u origin main`，
+然后在 GitHub 仓库 Settings → General → Default branch 里把默认分支切到 `main`。
 
 > 推送时如果用账号密码会被拒。GitHub 现在只认 **Personal Access Token**：
 > 头像 → Settings → Developer settings → Personal access tokens → Tokens (classic) →
@@ -109,16 +113,17 @@ git push -u origin main
 仓库 → **Settings** → 左侧 **Pages**：
 
 - **Source** 选 `Deploy from a branch`
-- **Branch** 选 `main`，目录选 `/ (root)`
+- **Branch** 选 `master`（和仓库实际分支名一致，别选成不存在的 `main`），目录选 `/ (root)`
 - 点 **Save**
 
 等 1 分钟左右，访问：
 
 ```
-https://<你的用户名>.github.io/binfen-dieying/
+https://dongmuyunanfeng.github.io/little-game/
 ```
 
 > 仓库里已经放了 `.nojekyll`，可以跳过 Jekyll 处理，静态文件原样发布。
+> 返回 404 且提示 "There isn't a GitHub Pages site here" 就是这步还没做或分支选错了。
 
 ### 3. 绑定自己的域名
 
@@ -137,7 +142,7 @@ https://<你的用户名>.github.io/binfen-dieying/
 | --- | --- | --- |
 | 记录类型 | `CNAME` | `A` |
 | 主机记录 | `game`（**只写前缀**，不要写全域名） | `@` |
-| 记录值 | `<你的用户名>.github.io` | 依次添加 4 条：`185.199.108.153`、`185.199.109.153`、`185.199.110.153`、`185.199.111.153` |
+| 记录值 | `dongmuyunanfeng.github.io` | 依次添加 4 条：`185.199.108.153`、`185.199.109.153`、`185.199.110.153`、`185.199.111.153` |
 | TTL | `300`（先小一点，方便改错后快速生效） | `300` |
 
 几个容易填错的地方：
