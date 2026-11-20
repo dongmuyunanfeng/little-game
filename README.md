@@ -90,6 +90,17 @@ npx serve .
 
 ## 部署到 GitHub Pages
 
+### 0. 线上地址
+
+| 项 | 值 |
+| --- | --- |
+| 正式访问 | <https://smater.dongmunanfeng.com> |
+| 仓库 | <https://github.com/dongmuyunanfeng/little-game> |
+| 分支 | `master`，Pages 目录 `/ (root)` |
+| 自定义域名 | `smater.dongmunanfeng.com`（写在 `CNAME` 文件里，也是 Pages 的 Custom domain） |
+
+`https://dongmuyunanfeng.github.io/little-game/` 会 **301 跳转**到上面的正式域名，属正常现象。
+
 ### 1. 建仓库并推送
 
 当前仓库：<https://github.com/dongmuyunanfeng/little-game>，默认分支 `master`。
@@ -171,7 +182,7 @@ DNS 检查变绿后勾选 **Enforce HTTPS**（证书由 GitHub 自动签发，�
 
 > 备案：域名解析指向 GitHub（境外服务器）**不需要** ICP 备案；只有解析到境内服务器才需要。
 >
-> 注意：一旦在 Pages 里填了 Custom domain，`https://<用户名>.github.io/binfen-dieying/`
+> 注意：一旦在 Pages 里填了 Custom domain，`https://dongmuyunanfeng.github.io/little-game/`
 > 会 **301 跳转**到你的自定义域名，不再是一个独立入口。想两个地址都能用，就别设 Custom domain，
 > 只在 DNS 里加 `CNAME`（GitHub 会自动跟随，但 HTTPS 证书只对 `github.io` 有效）。
 
@@ -187,7 +198,8 @@ binfen-dieying/
 ├── index.html        # 游戏本体（HTML + CSS + JS 全部内联，无依赖）
 ├── README.md
 ├── LICENSE           # MIT
-├── CNAME.sample      # 自定义域名模板
+├── CNAME             # 自定义域名（Pages 读这个文件）
+├── CNAME.sample      # 换域名时照它改
 ├── .nojekyll         # 关闭 GitHub Pages 的 Jekyll 处理
 └── docs/
     ├── preview.png   # 示意图
