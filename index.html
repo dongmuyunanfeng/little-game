@@ -410,26 +410,36 @@
   //   d: x - y = c 斜折（右上-左下）
   //   a: x + y = c 斜折（左上-右下）
   // 只能折面积较小的一侧；斜折时被折走的是角上的三角形。
-  function makeFold(n, kind, c){
+  // forceDir 用于「两侧正好等大」的折痕：那种情况正反都合法，得能指定折哪一侧
+  function makeFold(n, kind, c, forceDir){
     const N = n*n;
     let plus;                                   // 折线正侧（side>0）的面积
     if(kind === 'v' || kind === 'h') plus = (n-c)*n;
     else if(kind === 'd') plus = c >= 0 ? (n-c)*(n-c)/2 : N - (n+c)*(n+c)/2;
     else plus = c <= n ? N - c*c/2 : (2*n-c)*(2*n-c)/2;
-    const dir = plus <= N - plus ? 1 : -1;      // 折较小的一侧
+    const bi = plus === N - plus;               // 两侧等大：折哪一半都行
+    const dir = forceDir || (plus <= N - plus ? 1 : -1);   // 否则只能折较小的一侧
     let size, leg = 0;
     if(kind === 'v' || kind === 'h') size = Math.min(c, n-c);
     else if(kind === 'd') size = leg = dir > 0 ? n - c : n + c;
     else size = leg = dir > 0 ? 2*n - c : c;
     const area = leg ? leg*leg/2 : size*n;
-    return {kind, c, dir, size, area};
+    return {kind, c, dir, size, area, bi};
   }
 
   function allCreases(n){
     const out = [];
     for(let c=1;c<n;c++){ out.push(makeFold(n,'v',c)); out.push(makeFold(n,'h',c)); }
-    for(let c=-(n-1);c<=n-1;c++) out.push(makeFold(n,'d',c));
-    for(let c=1;c<=2*n-1;c++) out.push(makeFold(n,'a',c));
+    for(let c=-(n-1);c<=n-1;c++){
+      out.push(makeFold(n,'d',c));
+      // 主对角线（x−y=0）把纸分成两个等大的直角三角形，正反两向都要能折
+      if(c === 0) out.push(makeFold(n,'d',c,-1));
+    }
+    for(let c=1;c<=2*n-1;c++){
+      out.push(makeFold(n,'a',c));
+      // 副对角线（x+y=n）同理：右下→左上 与 左上→右下 都要能折
+      if(c === n) out.push(makeFold(n,'a',c,-1));
+    }
     return out;
   }
 
@@ -726,15 +736,17 @@
     const c = f.c;
     if(f.kind === 'v') return {left:c/n*100, top:50, w:'20px', h:'100%', rot:0};
     if(f.kind === 'h') return {left:50, top:c/n*100, w:'100%', h:'20px', rot:0};
+    // 对角线的正反两向共用一条点击条，折哪一半由鼠标落在折线哪一侧决定，所以条要厚一点
+    const h = f.bi ? '26px' : '18px';
     if(f.kind === 'd'){
       return {
         left:(n+c)/2/n*100, top:(n-c)/2/n*100,
-        w:((n-Math.abs(c))*Math.SQRT2/n*100)+'%', h:'18px', rot:45
+        w:((n-Math.abs(c))*Math.SQRT2/n*100)+'%', h, rot:45
       };
     }
     return {
       left:c/2/n*100, top:c/2/n*100,
-      w:(Math.min(c, 2*n-c)*Math.SQRT2/n*100)+'%', h:'18px', rot:-45
+      w:(Math.min(c, 2*n-c)*Math.SQRT2/n*100)+'%', h, rot:-45
     };
   }
 
@@ -743,21 +755,58 @@
     document.querySelectorAll('#board .crease').forEach(e => e.remove());
     S.creases = allCreases(n);
     S.creaseEls = [];
+    const byLine = new Map();          // 同一条折线（正反两向）只做一个点击条
     S.creases.forEach(f => {
+      const key = f.kind + ':' + f.c;
+      const mate = byLine.get(key);
+      if(mate){ mate.pair = f; return; }
       const box = creaseBox(n, f);
       const el = document.createElement('b');
-      el.className = 'crease ' + f.kind;
+      el.className = 'crease ' + f.kind + (f.bi ? ' dual' : '');
       el.style.left = box.left + '%';
       el.style.top = box.top + '%';
       el.style.width = box.w;
       el.style.height = box.h;
       el.style.transform = 'translate(-50%,-50%)' + (box.rot ? ' rotate(' + box.rot + 'deg)' : '');
-      el.addEventListener('pointerenter', e => { if(e.pointerType !== 'touch') showHint(f); });
+      const rec = {line:f, pair:null, plus:f, minus:f, cur:f, el};
+      el._rec = rec;
+      el.addEventListener('pointerenter', e => {
+        if(e.pointerType === 'touch') return;
+        aim(rec, e);
+        showHint(rec.cur);
+      });
+      el.addEventListener('pointermove', e => {
+        if(e.pointerType === 'touch' || !rec.pair) return;
+        const was = rec.cur;
+        if(aim(rec, e) !== was) showHint(rec.cur);   // 跨过折线才换向，别每动一下重排
+      });
       el.addEventListener('pointerleave', () => hideHint());
-      el.addEventListener('click', () => doFold(f));
+      el.addEventListener('click', e => {
+        if(rec.pair) aim(rec, e);
+        doFold(rec.cur);
+      });
       boardEl.appendChild(el);
       S.creaseEls.push(el);
+      byLine.set(key, rec);
     });
+    // 记下每条折线的正/反两向，供 aim() 挑
+    byLine.forEach(rec => {
+      if(!rec.pair) return;
+      rec.plus  = rec.line.dir > 0 ? rec.line : rec.pair;
+      rec.minus = rec.line.dir > 0 ? rec.pair : rec.line;
+    });
+  }
+
+  // 鼠标落在折线的哪一侧，就折哪一半（落得贴线时沿用上一次的方向）
+  function aim(rec, e){
+    if(!rec.pair) return rec.line;
+    const n = S.n, r = boardEl.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width * n;
+    const y = (e.clientY - r.top) / r.height * n;
+    const s = sideOf(rec.line, x, y);
+    if(s > .06) rec.cur = rec.plus;
+    else if(s < -.06) rec.cur = rec.minus;
+    return rec.cur;
   }
 
   function showHint(f, solved){
